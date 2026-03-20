@@ -33,7 +33,7 @@ export type EditingCell = {
 export type PaletteView = "unassigned" | "assigned";
 
 const INITIAL_WINDOW_START_DAY_OFFSET = 0;
-const INITIAL_WINDOW_DAY_COUNT = 90;
+const INITIAL_WINDOW_DAY_COUNT = 30;
 const WINDOW_EXTEND_DAYS = 14;
 
 export function useGanttChartState(vehicles: Vehicle[]) {
