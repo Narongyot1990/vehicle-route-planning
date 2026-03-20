@@ -1,4 +1,4 @@
-import { useState, useEffect, type DragEvent, type KeyboardEvent, type MouseEvent, type Ref } from "react";
+import { useState, useEffect, useRef, type DragEvent, type KeyboardEvent, type MouseEvent, type Ref, type PointerEvent as ReactPointerEvent } from "react";
 import { getDurationHours, type JobItem } from "@/lib/gantt";
 
 type PaletteJobCardProps = {
@@ -27,7 +27,14 @@ type PaletteJobCardProps = {
   onStartEditPlannedStart?: (jobId: string) => void;
   onSavePlannedStart?: (jobId: string, plannedStart: number) => void;
   onCancelEditPlannedStart?: () => void;
+  // Pointer drag handlers for mobile support
+  onPointerDragStart?: (jobId: string, event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDragMove?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDragEnd?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDragCancel?: (event: ReactPointerEvent<HTMLElement>) => void;
 };
+
+const LONG_PRESS_DURATION = 300; // ms
 
 export function PaletteJobCard({
   job,
@@ -54,9 +61,16 @@ export function PaletteJobCard({
   onCancelEditPlacement,
   onStartEditPlannedStart,
   onSavePlannedStart,
-  onCancelEditPlannedStart
+  onCancelEditPlannedStart,
+  onPointerDragStart,
+  onPointerDragMove,
+  onPointerDragEnd,
+  onPointerDragCancel
 }: PaletteJobCardProps) {
   const [draft, setDraft] = useState<JobItem>(job);
+  const [isPointerDragging, setIsPointerDragging] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startPosRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!isEditing) {
@@ -71,6 +85,15 @@ export function PaletteJobCard({
   // Planned start editing state
   const [plannedDate, setPlannedDate] = useState("");
   const [plannedHour, setPlannedHour] = useState(0);
+
+  // Cleanup long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
 
   // Init placement form
   useEffect(() => {
@@ -100,7 +123,77 @@ export function PaletteJobCard({
     }
   }, [isEditingPlannedStart, job.plannedStart, timelineOrigin]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Pointer Event Handlers (Mobile DnD) ──────────────────────────────────
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // Only handle primary button or touch
+    if (event.button !== 0 && event.pointerType === "mouse") {
+      return;
+    }
+
+    if (!draggable || editMode || isEditing || isEditingPlacement || isEditingPlannedStart) {
+      return;
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    startPosRef.current = { x: event.clientX, y: event.clientY };
+
+    // Start long press timer
+    longPressTimerRef.current = setTimeout(() => {
+      setIsPointerDragging(true);
+      onPointerDragStart?.(job.id, event);
+    }, LONG_PRESS_DURATION);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isPointerDragging) {
+      // Cancel long press if pointer moved too much
+      if (startPosRef.current) {
+        const dx = event.clientX - startPosRef.current.x;
+        const dy = event.clientY - startPosRef.current.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 10 && longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+          startPosRef.current = null;
+        }
+      }
+      return;
+    }
+
+    onPointerDragMove?.(event);
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.releasePointerCapture(event.pointerId);
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (isPointerDragging) {
+      setIsPointerDragging(false);
+      onPointerDragEnd?.(event);
+    }
+
+    startPosRef.current = null;
+  };
+
+  const handlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (isPointerDragging) {
+      setIsPointerDragging(false);
+      onPointerDragCancel?.(event);
+    }
+
+    startPosRef.current = null;
+  };
+
+  // ── HTML5 DnD Handlers (Desktop) ──────────────────────────────────────────
   const handleDragStart = (event: DragEvent<HTMLElement>) => {
     if (!onJobDragStart) return;
     onJobDragStart(job.id, event);
@@ -394,14 +487,21 @@ export function PaletteJobCard({
   return (
     <div
       ref={cardRef}
-      className={`palette-card${isDragging ? " is-dragging" : ""}${editMode ? " disabled" : ""}${clickable ? " clickable" : ""}${highlighted ? " highlighted" : ""}`}
+      className={`palette-card${isDragging ? " is-dragging" : ""}${isPointerDragging ? " is-pointer-dragging" : ""}${editMode ? " disabled" : ""}${clickable ? " clickable" : ""}${highlighted ? " highlighted" : ""}`}
       draggable={cardDraggable}
       tabIndex={clickable ? 0 : -1}
       role={clickable ? "button" : undefined}
+      // HTML5 DnD (desktop)
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      // Pointer events (mobile)
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       onClick={handleCardClick}
       onKeyDown={handleCardKeyDown}
+      style={{ touchAction: cardDraggable ? "none" : undefined }}
     >
       <div className="palette-head">
         <div>

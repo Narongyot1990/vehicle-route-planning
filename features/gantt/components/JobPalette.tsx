@@ -1,4 +1,4 @@
-import { useEffect, useRef, type DragEvent } from "react";
+import { useEffect, useRef, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { DragPayload, JobItem } from "@/lib/gantt";
 import type { PaletteView } from "@/features/gantt/hooks/useGanttChartState";
 import { PaletteJobCard } from "@/features/gantt/components/PaletteJobCard";
@@ -35,6 +35,11 @@ type JobPaletteProps = {
   onStartEditPlannedStart: (jobId: string) => void;
   onSavePlannedStart: (jobId: string, plannedStart: number) => void;
   onCancelEditPlannedStart: () => void;
+  // Pointer drag handlers for mobile support
+  onPointerDragStart?: (jobId: string, event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDragMove?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDragEnd?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDragCancel?: (event: ReactPointerEvent<HTMLElement>) => void;
 };
 
 export function JobPalette({
@@ -68,7 +73,11 @@ export function JobPalette({
   onCancelEditPlacement,
   onStartEditPlannedStart,
   onSavePlannedStart,
-  onCancelEditPlannedStart
+  onCancelEditPlannedStart,
+  onPointerDragStart,
+  onPointerDragMove,
+  onPointerDragEnd,
+  onPointerDragCancel
 }: JobPaletteProps) {
   const showingAssigned = paletteView === "assigned";
   const assignedCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -172,6 +181,10 @@ export function JobPalette({
                     onStartEditPlannedStart={onStartEditPlannedStart}
                     onSavePlannedStart={onSavePlannedStart}
                     onCancelEditPlannedStart={onCancelEditPlannedStart}
+                    onPointerDragStart={onPointerDragStart}
+                    onPointerDragMove={onPointerDragMove}
+                    onPointerDragEnd={onPointerDragEnd}
+                    onPointerDragCancel={onPointerDragCancel}
                   />
                 ))
               : assignedJobs.map((item) => (

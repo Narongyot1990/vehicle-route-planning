@@ -36,6 +36,20 @@ export function GanttChartFeature() {
     state.handleSegmentInputKeyDown(event, jobId, segmentId, value);
   };
 
+  // Pointer drag wrappers to match types
+  const handlePointerDragMove = (event: ReactPointerEvent<HTMLElement>) => {
+    state.handlePointerDragMove(event.clientX, event.clientY);
+  };
+
+  const handlePointerDragEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+    state.handlePointerDragEnd(event.clientX, event.clientY, target);
+  };
+
+  const handlePointerDragCancel = (event: ReactPointerEvent<HTMLElement>) => {
+    state.handlePointerDragCancel();
+  };
+
   const handleShellPointerDownCapture = (event: ReactPointerEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     const isJobBar = target.closest("[data-job-id]");
@@ -132,6 +146,10 @@ export function GanttChartFeature() {
             onStartEditPlannedStart={state.setEditingPlannedStartJobId}
             onSavePlannedStart={state.handleSavePlannedStart}
             onCancelEditPlannedStart={() => state.setEditingPlannedStartJobId(null)}
+            onPointerDragStart={state.handlePointerDragStart}
+            onPointerDragMove={handlePointerDragMove}
+            onPointerDragEnd={handlePointerDragEnd}
+            onPointerDragCancel={handlePointerDragCancel}
           />
         </div>
       </section>

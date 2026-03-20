@@ -558,6 +558,102 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     });
   };
 
+  // ── Pointer Drag Handlers (Mobile Support) ───────────────────────────────
+  const handlePointerDragStart = (jobId: string) => {
+    if (editMode) {
+      return;
+    }
+    setActiveDrag(buildJobDragPayload(jobId));
+    setPaletteActive(false);
+    setHoveredDrop(null);
+  };
+
+  const handlePointerDragMove = (x: number, y: number) => {
+    if (editMode || !activeDrag) {
+      return;
+    }
+
+    const targetElement = document.elementFromPoint(x, y);
+    if (!targetElement) {
+      return;
+    }
+
+    // Check if we're over a slot cell
+    const slotCell = targetElement.closest("[data-slot-vehicle-id]");
+    if (slotCell) {
+      const vehicleId = slotCell.getAttribute("data-slot-vehicle-id");
+      const hourIndex = parseInt(slotCell.getAttribute("data-slot-hour-index") ?? "0", 10);
+      if (vehicleId && !isNaN(hourIndex)) {
+        setPaletteActive(false);
+        setHoveredDrop({
+          vehicleId,
+          startIndex: toAbsoluteIndex(hourIndex)
+        });
+        return;
+      }
+    }
+
+    // Check if we're over the palette (to unplace)
+    const palette = targetElement.closest(".job-palette");
+    if (palette) {
+      setPaletteActive(true);
+      setHoveredDrop(null);
+    }
+  };
+
+  const handlePointerDragEnd = (x: number, y: number, target: HTMLElement | null) => {
+    if (editMode || !activeDrag) {
+      clearInteractionState();
+      return;
+    }
+
+    if (!target) {
+      clearInteractionState();
+      return;
+    }
+
+    // Check if dropped on a slot cell
+    const slotCell = target.closest("[data-slot-vehicle-id]");
+    if (slotCell) {
+      const vehicleId = slotCell.getAttribute("data-slot-vehicle-id");
+      const hourIndex = parseInt(slotCell.getAttribute("data-slot-hour-index") ?? "0", 10);
+      if (vehicleId && !isNaN(hourIndex)) {
+        const startIndex = toAbsoluteIndex(hourIndex);
+        if (canDrop(vehicleId, startIndex, activeDrag)) {
+          setPlacements((current) => {
+            const existing = current.find((placement) => placement.jobId === activeDrag.jobId);
+            if (existing) {
+              return current.map((placement) =>
+                placement.jobId === activeDrag.jobId ? { ...placement, vehicleId, startIndex } : placement
+              );
+            }
+            return [...current, { jobId: activeDrag.jobId, vehicleId, startIndex }];
+          });
+        }
+      }
+      clearInteractionState();
+      return;
+    }
+
+    // Check if dropped on palette (to unplace)
+    const palette = target.closest(".job-palette");
+    if (palette) {
+      if (activeDrag.jobId.startsWith("tool-instance-")) {
+        setJobs((current) => current.filter((job) => job.id !== activeDrag.jobId));
+      } else {
+        setPlacements((current) => current.filter((placement) => placement.jobId !== activeDrag.jobId));
+      }
+      clearInteractionState();
+      return;
+    }
+
+    clearInteractionState();
+  };
+
+  const handlePointerDragCancel = () => {
+    clearInteractionState();
+  };
+
   const handleSegmentInputChange = (value: string) => {
     setEditingCell((current) =>
       current
@@ -645,6 +741,10 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     handleJobDragStart,
     handleToolTemplateDragStart,
     handleToolTemplateDragEnd,
+    handlePointerDragStart,
+    handlePointerDragMove,
+    handlePointerDragEnd,
+    handlePointerDragCancel,
     handleSegmentClick,
     handleSegmentInputChange,
     handleSegmentInputKeyDown,

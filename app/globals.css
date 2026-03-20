@@ -995,7 +995,8 @@ select {
   border-color: var(--accent);
 }
 
-.palette-card.is-dragging {
+.palette-card.is-dragging,
+.palette-card.is-pointer-dragging {
   opacity: 0.4;
 }
 
