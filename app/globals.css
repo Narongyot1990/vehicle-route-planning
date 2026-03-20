@@ -592,6 +592,47 @@ select {
   font-weight: 500;
 }
 
+/* New 2-line vehicle cell layout */
+.vehicle-cell-line1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
+}
+
+.vehicle-branch-badge {
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.vehicle-cell-line2 {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Mobile responsive — hide line2 on small screens */
+@media (max-width: 640px) {
+  .vehicle-cell-line2 {
+    display: none;
+  }
+
+  .vehicle-cell-main {
+    font-size: 0.65rem;
+  }
+
+  .vehicle-branch-badge {
+    font-size: 0.55rem;
+    padding: 1px 4px;
+  }
+}
+
 .hour-cell.buffer-hour {
   color: rgba(100, 116, 139, 0.4);
   background: #f8fafc;

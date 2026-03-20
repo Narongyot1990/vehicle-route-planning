@@ -8,11 +8,12 @@ import {
   type JobPlacement
 } from "@/lib/gantt";
 import type { EditingCell } from "@/features/gantt/hooks/useGanttChartState";
+import type { Vehicle } from "@/features/gantt/data/mockVehicles";
 import { PlacedJobBar } from "@/features/gantt/components/PlacedJobBar";
 import { TimelineSlotCell } from "@/features/gantt/components/TimelineSlotCell";
 
 type VehicleTimelineRowProps = {
-  vehicle: string;
+  vehicle: Vehicle;
   displayTotalHours: number;
   editMode: boolean;
   jobs: JobItem[];
@@ -61,14 +62,11 @@ export function VehicleTimelineRow({
   jumpJobId,
   hourWidth
 }: VehicleTimelineRowProps) {
-  const vehiclePlacements = placements.filter((placement) => placement.vehicleId === vehicle);
+  const vehiclePlacements = placements.filter((placement) => placement.vehicleId === vehicle.licensePlate);
   const findJob = (jobId: string) => jobs.find((job) => job.id === jobId);
-  const vehicleParts = vehicle.split(" ");
-  const vehiclePlate = vehicleParts.slice(0, 2).join(" ");
-  const vehicleRegion = vehicleParts.slice(2).join(" ");
 
   const renderDropPreview = () => {
-    if (editMode || !hoveredDrop || hoveredDrop.vehicleId !== vehicle || !activeDrag) {
+    if (editMode || !hoveredDrop || hoveredDrop.vehicleId !== vehicle.licensePlate || !activeDrag) {
       return null;
     }
 
@@ -77,7 +75,7 @@ export function VehicleTimelineRow({
       return null;
     }
 
-    const dropAllowed = canDrop(vehicle, hoveredDrop.startIndex, activeDrag);
+    const dropAllowed = canDrop(vehicle.licensePlate, hoveredDrop.startIndex, activeDrag);
     return (
       <div
         className={`drop-preview${dropAllowed ? "" : " invalid"}`}
@@ -92,23 +90,33 @@ export function VehicleTimelineRow({
     );
   };
 
+  const hasLine2 = vehicle.engineType || vehicle.vehicleType;
+
   return (
     <>
-      <div className="vehicle-cell" data-vehicle-id={vehicle} title={vehicle}>
-        <span className="vehicle-cell-main">{vehiclePlate}</span>
-        {vehicleRegion ? <span className="vehicle-cell-sub">{vehicleRegion}</span> : null}
+      <div className="vehicle-cell" data-vehicle-id={vehicle.licensePlate} title={vehicle.licensePlate}>
+        <div className="vehicle-cell-line1">
+          <span className="vehicle-cell-main">{vehicle.licensePlate}</span>
+          {vehicle.branch ? <span className="vehicle-branch-badge">{vehicle.branch}</span> : null}
+        </div>
+        {hasLine2 ? (
+          <div className="vehicle-cell-line2">
+            {vehicle.engineType}
+            {vehicle.vehicleType ? ` · ${vehicle.vehicleType}` : ""}
+          </div>
+        ) : null}
       </div>
       <div className={`timeline-row${editMode ? " edit-mode" : ""}`}>
         <div className="slots-layer">
           {Array.from({ length: displayTotalHours }, (_, hourIndex) => {
             const previewVisible =
-              hoveredDrop?.vehicleId === vehicle && toDisplayIndex(hoveredDrop.startIndex) === hourIndex;
-            const previewConflict = previewVisible && !canDrop(vehicle, hoveredDrop.startIndex, activeDrag);
+              hoveredDrop?.vehicleId === vehicle.licensePlate && toDisplayIndex(hoveredDrop.startIndex) === hourIndex;
+            const previewConflict = previewVisible && !canDrop(vehicle.licensePlate, hoveredDrop.startIndex, activeDrag);
 
             return (
               <TimelineSlotCell
-                key={`${vehicle}-${hourIndex}`}
-                vehicle={vehicle}
+                key={`${vehicle.licensePlate}-${hourIndex}`}
+                vehicle={vehicle.licensePlate}
                 hourIndex={hourIndex}
                 editMode={editMode}
                 previewVisible={previewVisible}

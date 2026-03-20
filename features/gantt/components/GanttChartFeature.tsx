@@ -6,13 +6,12 @@ import { JobPalette } from "@/features/gantt/components/JobPalette";
 import { GanttMeta } from "@/features/gantt/components/GanttMeta";
 import { ToolboxTray } from "@/features/gantt/components/ToolboxTray";
 import { useGanttChartState } from "@/features/gantt/hooks/useGanttChartState";
+import { useVehicles } from "@/features/gantt/hooks/useVehicles";
+import type { Vehicle } from "@/features/gantt/data/mockVehicles";
 
-type GanttChartFeatureProps = {
-  vehicles: string[];
-};
-
-export function GanttChartFeature({ vehicles }: GanttChartFeatureProps) {
+export function GanttChartFeature() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const vehicles: Vehicle[] = useVehicles();
   const state = useGanttChartState(vehicles);
 
   // Keyboard shortcut: [ to toggle sidebar

@@ -20,6 +20,7 @@ import {
   type JobPlacement
 } from "@/lib/gantt";
 import { INITIAL_JOBS, TOOLBOX_TEMPLATES } from "@/features/gantt/constants";
+import type { Vehicle } from "@/features/gantt/data/mockVehicles";
 
 export type InteractionMode = "move" | "edit";
 
@@ -31,11 +32,11 @@ export type EditingCell = {
 
 export type PaletteView = "unassigned" | "assigned";
 
-const INITIAL_WINDOW_START_DAY_OFFSET = -30;
+const INITIAL_WINDOW_START_DAY_OFFSET = 0;
 const INITIAL_WINDOW_DAY_COUNT = 90;
 const WINDOW_EXTEND_DAYS = 14;
 
-export function useGanttChartState(vehicles: string[]) {
+export function useGanttChartState(vehicles: Vehicle[]) {
   const timelineOrigin = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -668,7 +669,7 @@ function formatAbsoluteHourLabel(origin: Date, absoluteHourIndex: number) {
   return `${datePart} ${timePart}`;
 }
 
-function buildInitialPlacements(vehicles: string[]): JobPlacement[] {
+function buildInitialPlacements(vehicles: Vehicle[]): JobPlacement[] {
   const firstVehicle = vehicles[0];
   const secondVehicle = vehicles[1] ?? firstVehicle;
 
@@ -677,7 +678,7 @@ function buildInitialPlacements(vehicles: string[]): JobPlacement[] {
   }
 
   return [
-    { jobId: "job-002", vehicleId: firstVehicle, startIndex: 9 },
-    { jobId: "job-003", vehicleId: secondVehicle, startIndex: 30 }
+    { jobId: "job-002", vehicleId: firstVehicle.licensePlate, startIndex: 9 },
+    { jobId: "job-003", vehicleId: secondVehicle.licensePlate, startIndex: 30 }
   ];
 }
