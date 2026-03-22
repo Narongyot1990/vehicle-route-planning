@@ -2,10 +2,13 @@ import type {
   FocusEvent,
   KeyboardEvent,
   MouseEvent,
+  PointerEventHandler,
   PointerEvent as ReactPointerEvent
 } from "react";
+import { useEffect, useRef } from "react";
 import { BAR_HEIGHT, getDurationHours, HOUR_WIDTH, type DragPayload, type JobItem, type JobPlacement } from "@/lib/gantt";
 import type { EditingCell } from "@/features/gantt/hooks/useGanttChartState";
+import { getSegmentIcon, getSemanticSegmentColor } from "./GanttIcons";
 
 type PlacedJobBarProps = {
   job: JobItem;
@@ -28,6 +31,8 @@ type PlacedJobBarProps = {
   ) => void;
   hourWidth: number;
   jumpJobId: string | null;
+  onResizeToolInstance: (jobId: string, nextDurationHours: number) => boolean;
+  onJobBarClick: (jobId: string) => void;
 };
 
 export function PlacedJobBar({
@@ -45,15 +50,90 @@ export function PlacedJobBar({
   onSegmentInputBlur,
   onSegmentInputKeyDown,
   hourWidth,
-  jumpJobId
+  jumpJobId,
+  onResizeToolInstance,
+  onJobBarClick
 }: PlacedJobBarProps) {
   const durationHours = getDurationHours(job);
   const isDragging = activeDrag?.jobId === job.id;
   const goToLabel = "Go to list";
+  const pointerDownTimeRef = useRef(0);
+  const resizeSessionRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startDurationHours: number;
+  } | null>(null);
+  const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
+  const isToolResizeEnabled = !editMode && job.origin === "tool" && job.segments.length === 1;
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointerDownTimeRef.current = Date.now();
     event.stopPropagation();
     onPlacedJobPointerDown(job.id, event);
+  };
+
+  const handleClick = () => {
+    // Only treat as a click if pointer-down was recent (i.e., not a drag)
+    if (Date.now() - pointerDownTimeRef.current < 300) {
+      if (job.origin === "tool") {
+        onGoToPlacedJobInPalette(job.id);
+        return;
+      }
+
+      onJobBarClick(job.id);
+    }
+  };
+
+  useEffect(() => {
+    const handlePointerMove = (event: globalThis.PointerEvent) => {
+      const session = resizeSessionRef.current;
+      if (!session || event.pointerId !== session.pointerId) {
+        return;
+      }
+
+      const deltaHours = (event.clientX - session.startClientX) / hourWidth;
+      const nextDurationHours = Math.max(1, Math.round(session.startDurationHours + deltaHours));
+      onResizeToolInstance(job.id, nextDurationHours);
+    };
+
+    const finishResize = (event: globalThis.PointerEvent) => {
+      const session = resizeSessionRef.current;
+      if (!session || event.pointerId !== session.pointerId) {
+        return;
+      }
+
+      resizeSessionRef.current = null;
+      const handle = resizeHandleRef.current;
+      if (handle?.hasPointerCapture(event.pointerId)) {
+        handle.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", finishResize);
+    window.addEventListener("pointercancel", finishResize);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+    };
+  }, [hourWidth, job.id, onResizeToolInstance]);
+
+  const handleResizePointerDown: PointerEventHandler<HTMLButtonElement> = (event) => {
+    if (!isToolResizeEnabled) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    pointerDownTimeRef.current = 0;
+    resizeSessionRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startDurationHours: durationHours
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handleGoToPlacedList = () => {
@@ -82,10 +162,12 @@ export function PlacedJobBar({
       style={{
         left: toDisplayIndex(placement.startIndex) * hourWidth,
         width: durationHours * hourWidth,
-        height: BAR_HEIGHT
+        height: BAR_HEIGHT,
+        cursor: "pointer"
       }}
       title={`${job.title} (${durationHours}h)`}
       onPointerDown={handlePointerDown}
+      onClick={handleClick}
     >
       <button
         type="button"
@@ -102,6 +184,18 @@ export function PlacedJobBar({
           <path d="M8 12h8" />
         </svg>
       </button>
+      {isToolResizeEnabled ? (
+        <button
+          ref={resizeHandleRef}
+          type="button"
+          className="job-resize-handle"
+          aria-label={`Resize ${job.title}`}
+          title="Drag to resize"
+          onPointerDown={handleResizePointerDown}
+        >
+          <span />
+        </button>
+      ) : null}
       <div className="job-stack-content">
         <div className="job-stack-header">
           <span>{job.title}</span>
@@ -109,17 +203,20 @@ export function PlacedJobBar({
         <div className="job-bar single">
           <div className="job-bar-segments">
             {job.segments.map((segment) => {
+              const markerType = segment.segmentType ?? "waypoint";
               const isEditing =
                 editingCell?.jobId === job.id && editingCell.segmentId === segment.id;
               const segmentStyle = {
-                width: `${(segment.durationHours / durationHours) * 100}%`,
-                background: segment.color
+                flex: segment.durationHours,
+                background: getSemanticSegmentColor(markerType),
               };
 
               if (!editMode) {
                 return (
-                  <div key={segment.id} className="job-segment" style={segmentStyle}>
-                    <span>{segment.label}</span>
+                  <div key={segment.id} className="job-segment" style={segmentStyle} title={`${segment.label} • ${segment.durationHours}h`}>
+                    <span style={{ color: "#fff", fontSize: "1.05rem", lineHeight: 1, display: "inline-flex", marginRight: "4px" }} aria-hidden="true">
+                      {getSegmentIcon(markerType)}
+                    </span>
                   </div>
                 );
               }

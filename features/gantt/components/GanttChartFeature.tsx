@@ -7,12 +7,20 @@ import { GanttMeta } from "@/features/gantt/components/GanttMeta";
 import { ToolboxTray } from "@/features/gantt/components/ToolboxTray";
 import { useGanttChartState } from "@/features/gantt/hooks/useGanttChartState";
 import { useVehicles } from "@/features/gantt/hooks/useVehicles";
+import { useJobs } from "@/features/gantt/hooks/useJobs";
 import type { Vehicle } from "@/features/gantt/data/mockVehicles";
+import { JobOrderEditModal } from "@/features/gantt/components/JobOrderEditModal";
 
 export function GanttChartFeature() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [modalJobId, setModalJobId] = useState<string | null>(null);
   const vehicles: Vehicle[] = useVehicles();
-  const state = useGanttChartState(vehicles);
+  const { jobs, reload } = useJobs();
+  const state = useGanttChartState(vehicles, jobs);
+
+  const handleJobBarClick = (jobId: string) => {
+    setModalJobId(jobId);
+  };
 
   // Keyboard shortcut: [ to toggle sidebar
   useEffect(() => {
@@ -81,7 +89,7 @@ export function GanttChartFeature() {
               days={state.days}
               windowStartHour={state.windowStartHour}
               displayTotalHours={state.displayTotalHours}
-              jobs={state.jobs}
+              jobs={state.jobItems}
               placements={state.placements}
               editMode={state.editMode}
               jumpToken={state.jumpToken}
@@ -111,6 +119,8 @@ export function GanttChartFeature() {
               onSegmentInputBlur={state.commitSegmentHours}
               onSegmentInputKeyDown={handleSegmentInputKeyDown}
               onGoToPlacedJobInPalette={state.handleGoToPlacedJobInPalette}
+              onResizeToolInstance={state.handleResizeToolInstance}
+              onJobBarClick={handleJobBarClick}
             />
           </section>
 
@@ -138,7 +148,7 @@ export function GanttChartFeature() {
             onNavigateToJobPlacement={state.handleNavigateToJobPlacement}
             onUnplaceJob={state.handleUnplaceJob}
             onEditJob={state.handleEditJob}
-            onStartEditJob={state.setEditingJobId}
+            onStartEditJob={(jobId) => setModalJobId(jobId)}
             onCancelEditJob={() => state.setEditingJobId(null)}
             onStartEditPlacement={state.setEditingPlacementJobId}
             onUpdatePlacement={state.handleUpdatePlacement}
@@ -190,6 +200,14 @@ export function GanttChartFeature() {
         onToolTemplateDragStart={state.handleToolTemplateDragStart}
         onToolTemplateDragEnd={state.handleToolTemplateDragEnd}
       />
+
+      {modalJobId && (
+        <JobOrderEditModal
+          jobOrderId={modalJobId}
+          onClose={() => setModalJobId(null)}
+          onSaved={reload}
+        />
+      )}
     </section>
   );
 }

@@ -10,6 +10,7 @@ export type JobSegment = {
   label: string;
   durationHours: number;
   color: string;
+  segmentType?: "origin" | "transit" | "waypoint" | "destination" | "direct";
 };
 
 export type JobItem = {
@@ -18,7 +19,6 @@ export type JobItem = {
   title: string;
   note: string;
   segments: JobSegment[];
-  plannedStart?: number; // absolute hour index from timeline origin
 };
 
 export type JobPlacement = {
@@ -38,51 +38,6 @@ export const EDGE_BUFFER_DAYS = 3;
 export const HOUR_WIDTH = 44;
 export const LEFT_COLUMN_WIDTH = 240;
 export const BAR_HEIGHT = 44;
-
-export function buildDays(dayCount = DAY_COUNT): DayColumn[] {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-
-  return Array.from({ length: dayCount }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-
-    return {
-      key: date.toISOString(),
-      label: new Intl.DateTimeFormat("en-GB", {
-        day: "2-digit",
-        month: "short"
-      }).format(date),
-      weekday: new Intl.DateTimeFormat("en-GB", {
-        weekday: "short"
-      }).format(date),
-      isoDate: toIsoDate(date)
-    };
-  });
-}
-
-export function buildDaysForMonth(year: number, monthIndex: number): DayColumn[] {
-  const start = new Date(year, monthIndex, 1);
-  start.setHours(0, 0, 0, 0);
-  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-
-  return Array.from({ length: daysInMonth }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-
-    return {
-      key: date.toISOString(),
-      label: new Intl.DateTimeFormat("en-GB", {
-        day: "2-digit",
-        month: "short"
-      }).format(date),
-      weekday: new Intl.DateTimeFormat("en-GB", {
-        weekday: "short"
-      }).format(date),
-      isoDate: toIsoDate(date)
-    };
-  });
-}
 
 export function buildDaysFromOffset(baseDate: Date, startDayOffset: number, dayCount: number): DayColumn[] {
   const start = new Date(baseDate);
@@ -134,7 +89,7 @@ export function normalizeStartIndex(
 }
 
 export function isPlacementConflict(
-  jobs: JobItem[],
+  jobs: (JobItem | { id: string; segments: { durationHours: number }[] })[],
   placements: JobPlacement[],
   jobId: string,
   vehicleId: string,
@@ -154,13 +109,13 @@ export function isPlacementConflict(
     }
 
     const currentStart = placement.startIndex;
-    const currentEnd = currentStart + getDurationHours(currentJob);
+    const currentEnd = currentStart + getDurationHours(currentJob as JobItem);
     return startIndex < currentEnd && nextEnd > currentStart;
   });
 }
 
 export function canDropJob(
-  jobs: JobItem[],
+  jobs: (JobItem | { id: string; segments: { durationHours: number }[] })[],
   placements: JobPlacement[],
   vehicleId: string,
   startIndex: number,
@@ -181,7 +136,7 @@ export function canDropJob(
     job.id,
     vehicleId,
     startIndex,
-    getDurationHours(job)
+    getDurationHours(job as JobItem)
   );
 }
 
@@ -199,4 +154,149 @@ function toIsoDate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+// ── Job ↔ JobItem converter ───────────────────────────────────────────────────
+// Job is the rich business format (real stops, customer info, etc.)
+// JobItem is the timeline display format (segments → colored bars)
+
+import type { Job } from "@/features/gantt/types/job";
+
+const DEFAULT_DIRECT_SEGMENT_COLOR = "#475569";
+const TRANSIT_SEGMENT_COLOR = "#334155";
+
+export function jobToJobItem(job: Job): JobItem {
+  // Direct job (no stops): show as a single segment bar
+  if (job.directLeadTimeHours !== undefined) {
+    return {
+      id: job.id,
+      origin: "pool",
+      title: job.routeName || job.customerName,
+      note: `${job.customerName} — ${job.directLeadTimeHours}h direct`,
+      segments: [
+        {
+          id: `${job.id}-direct`,
+          label: job.customerName,
+          durationHours: job.directLeadTimeHours,
+          segmentType: "direct",
+          color:
+            job.priority === "urgent"
+              ? "#dc2626"
+              : job.priority === "high"
+              ? "#d97706"
+              : DEFAULT_DIRECT_SEGMENT_COLOR,
+        },
+      ],
+    };
+  }
+
+  // Template-based job: stops → segments
+  return {
+    id: job.id,
+    origin: "pool",
+    title: job.routeName || _routeSummary(job),
+    note: `${job.customerName} | ${_routeSummary(job)}`,
+    segments: buildRouteSegments(job),
+  };
+}
+
+function buildRouteSegments(job: Job): JobSegment[] {
+  const segments: JobSegment[] = [];
+
+  job.stops.forEach((stop, index) => {
+    const dwellHours = Math.max(0, stop.dwellHours ?? 0);
+    if (dwellHours > 0) {
+      segments.push({
+        id: `${stop.id}-stop`,
+        label: `${getStopIcon(index, job.stops.length)} ${stop.label}`,
+        durationHours: dwellHours,
+        segmentType: getStopSegmentType(index, job.stops.length),
+        color: stop.color,
+      });
+    }
+
+    const nextStop = job.stops[index + 1];
+    if (!nextStop) {
+      return;
+    }
+
+    const nextStopDwellHours = Math.max(0, nextStop.dwellHours ?? 0);
+    const transitHours = Math.max(0, nextStop.transitFromPrevHours - nextStopDwellHours);
+    if (transitHours > 0) {
+      segments.push({
+        id: `${stop.id}-transit-${nextStop.id}`,
+        label: "🚚 In Transit",
+        durationHours: transitHours,
+        segmentType: "transit",
+        color: TRANSIT_SEGMENT_COLOR,
+      });
+    }
+  });
+
+  if (segments.length > 0) {
+    return segments;
+  }
+
+  return job.stops.map((stop, index) => ({
+    id: stop.id,
+    label: `${getStopIcon(index, job.stops.length)} ${stop.label}`,
+    durationHours: stop.transitFromPrevHours,
+    segmentType: getStopSegmentType(index, job.stops.length),
+    color: stop.color,
+  }));
+}
+
+function getStopSegmentType(index: number, totalStops: number): JobSegment["segmentType"] {
+  if (totalStops === 1) {
+    return "destination";
+  }
+
+  if (index === 0) {
+    return "origin";
+  }
+
+  if (index === totalStops - 1) {
+    return "destination";
+  }
+
+  return "waypoint";
+}
+
+function getStopIcon(index: number, totalStops: number) {
+  if (index === 0) {
+    return "◉";
+  }
+
+  if (index === totalStops - 1) {
+    return "▣";
+  }
+
+  return "⬢";
+}
+
+function _routeSummary(job: Job): string {
+  if (!job.stops || job.stops.length === 0) return "No stops";
+  const first = job.stops[0];
+  const last = job.stops[job.stops.length - 1];
+  if (job.stops.length === 1) return first.label;
+  return `${first.label} → ${last.label}`;
+}
+
+// ── Shared time formatting ────────────────────────────────────────────────────
+
+export function formatAbsoluteHourLabel(origin: Date, absoluteHourIndex: number): string {
+  const target = new Date(origin);
+  target.setHours(target.getHours() + absoluteHourIndex);
+
+  const datePart = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short"
+  }).format(target);
+  const timePart = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(target);
+
+  return `${datePart} ${timePart}`;
 }

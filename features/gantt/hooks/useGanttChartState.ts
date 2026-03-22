@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -9,18 +10,23 @@ import {
   type KeyboardEvent
 } from "react";
 import {
-  buildDaysFromOffset,
-  canDropJob,
+  formatAbsoluteHourLabel,
   getDurationHours,
   HOURS,
   isPlacementConflict,
+  jobToJobItem,
   parseDragPayload,
   type DragPayload,
   type JobItem,
-  type JobPlacement
+  type JobPlacement,
+  type JobSegment
 } from "@/lib/gantt";
-import { INITIAL_JOBS, TOOLBOX_TEMPLATES } from "@/features/gantt/constants";
 import type { Vehicle } from "@/features/gantt/data/mockVehicles";
+import { type Job, getJobTotalHours } from "@/features/gantt/types/job";
+import { useTimelineNavigation } from "./useTimelineNavigation";
+import { useToolInstances, toolItemToPaletteJob } from "./useToolInstances";
+
+// ── Exported Types ───────────────────────────────────────────────────────────
 
 export type InteractionMode = "move" | "edit";
 
@@ -32,30 +38,47 @@ export type EditingCell = {
 
 export type PaletteView = "unassigned" | "assigned";
 
-const INITIAL_WINDOW_START_DAY_OFFSET = 0;
-const INITIAL_WINDOW_DAY_COUNT = 30;
-const WINDOW_EXTEND_DAYS = 14;
+// ── Main Hook ────────────────────────────────────────────────────────────────
 
-export function useGanttChartState(vehicles: Vehicle[]) {
-  const timelineOrigin = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return now;
-  }, []);
+export function useGanttChartState(
+  vehicles: Vehicle[],
+  jobs: Job[],
+  onJobUpdate?: (updated: Job) => void,
+) {
+  // ── Compose Sub-Hooks ───────────────────────────────────────────────────────
+  const nav = useTimelineNavigation();
+  const tools = useToolInstances();
 
-  const [windowStartDayOffset, setWindowStartDayOffset] = useState(INITIAL_WINDOW_START_DAY_OFFSET);
-  const [windowDayCount, setWindowDayCount] = useState(INITIAL_WINDOW_DAY_COUNT);
-
-  const days = useMemo(
-    () => buildDaysFromOffset(timelineOrigin, windowStartDayOffset, windowDayCount),
-    [timelineOrigin, windowStartDayOffset, windowDayCount]
+  // ── JobItem derivation ──────────────────────────────────────────────────────
+  const jobItems = useMemo(
+    () => [...jobs.map(jobToJobItem), ...tools.toolInstances],
+    [jobs, tools.toolInstances]
   );
 
-  const windowStartHour = windowStartDayOffset * HOURS.length;
-  const displayTotalHours = windowDayCount * HOURS.length;
+  // ── Placements ──────────────────────────────────────────────────────────────
+  const [placements, setPlacements] = useState<JobPlacement[]>([]);
 
-  const [jobs, setJobs] = useState<JobItem[]>(INITIAL_JOBS);
-  const [placements, setPlacements] = useState<JobPlacement[]>(() => buildInitialPlacements(vehicles));
+  // Sync placements from jobs when jobs data loads/changes
+  useEffect(() => {
+    const jobBased = jobs
+      .filter((j) => j.assignedVehiclePlate && j.plannedStart != null)
+      .map((j) => ({
+        jobId: j.id,
+        vehicleId: j.assignedVehiclePlate!,
+        startIndex: j.plannedStart!,
+      }));
+
+    if (jobBased.length === 0) return;
+
+    setPlacements((prev) => {
+      const prevIds = new Set(prev.map((p) => p.jobId));
+      const incoming = jobBased.filter((p) => !prevIds.has(p.jobId));
+      if (incoming.length === 0) return prev;
+      return [...prev, ...incoming];
+    });
+  }, [jobs]);
+
+  // ── Interaction State ───────────────────────────────────────────────────────
   const [hoveredDrop, setHoveredDrop] = useState<{ vehicleId: string; startIndex: number } | null>(null);
   const [paletteActive, setPaletteActive] = useState(false);
   const [activeDrag, setActiveDrag] = useState<DragPayload | null>(null);
@@ -64,87 +87,117 @@ export function useGanttChartState(vehicles: Vehicle[]) {
   const [paletteView, setPaletteView] = useState<PaletteView>("unassigned");
   const [paletteFocusJobId, setPaletteFocusJobId] = useState<string | null>(null);
   const [paletteFocusToken, setPaletteFocusToken] = useState(0);
-  const [toolDragJobId, setToolDragJobId] = useState<string | null>(null);
-  const [activeToolTemplateId, setActiveToolTemplateId] = useState<string | null>(null);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [editingPlacementJobId, setEditingPlacementJobId] = useState<string | null>(null);
   const [editingPlannedStartJobId, setEditingPlannedStartJobId] = useState<string | null>(null);
-  const placementsRef = useRef(placements);
-  const toolDragJobIdRef = useRef<string | null>(null);
 
-  const [jumpAbsoluteHour, setJumpAbsoluteHour] = useState(0);
-  const [jumpToken, setJumpToken] = useState(0);
-  const [jumpJobId, setJumpJobId] = useState<string | null>(null);
-  const [jumpVehicleId, setJumpVehicleId] = useState<string | null>(null);
-  const [jumpJobToken, setJumpJobToken] = useState(0);
-  const [prependHours, setPrependHours] = useState(0);
-  const [prependToken, setPrependToken] = useState(0);
-  const [hourWidth, setHourWidth] = useState(44);
-  const [initializedJump, setInitializedJump] = useState(false);
+  // Refs for hot-path drag performance (avoid React state writes on every frame)
+  const hoveredDropRef = useRef<{ vehicleId: string; startIndex: number } | null>(null);
+  const paletteActiveRef = useRef(false);
+  const activeDragRef = useRef<DragPayload | null>(null);
 
   const editMode = mode === "edit";
-  const findJob = (jobId: string) => jobs.find((job) => job.id === jobId);
-  const findPlacement = (jobId: string) => placements.find((placement) => placement.jobId === jobId);
-  const findToolTemplate = (templateId: string) => TOOLBOX_TEMPLATES.find((template) => template.id === templateId);
-  const paletteJobs = jobs.filter((job) => job.origin === "pool" && !findPlacement(job.id));
-  const assignedJobs = placements
-    .map((placement) => {
-      const job = findJob(placement.jobId);
-      if (!job) {
-        return null;
-      }
 
-      return {
-        job,
-        placement,
-        atLabel: formatAbsoluteHourLabel(timelineOrigin, placement.startIndex)
-      };
-    })
-    .filter((item): item is { job: JobItem; placement: JobPlacement; atLabel: string } => item !== null);
+  // ── Lookup indexes ──────────────────────────────────────────────────────────
+  const jobsById = useMemo(() => {
+    const next = new Map<string, Job>();
+    for (const job of jobs) next.set(job.id, job);
+    return next;
+  }, [jobs]);
 
-  useEffect(() => {
-    placementsRef.current = placements;
+  const placementsByJobId = useMemo(() => {
+    const next = new Map<string, JobPlacement>();
+    for (const placement of placements) next.set(placement.jobId, placement);
+    return next;
   }, [placements]);
 
-  useEffect(() => {
-    toolDragJobIdRef.current = toolDragJobId;
-  }, [toolDragJobId]);
+  const findJob = (jobId: string) => jobsById.get(jobId);
+  const findPlacement = (jobId: string) => placementsByJobId.get(jobId);
 
-  const requestJumpToAbsoluteHour = (targetAbsoluteHour: number) => {
-    const targetDayOffset = Math.floor(targetAbsoluteHour / HOURS.length);
+  const paletteJobs = useMemo(
+    () => jobs.filter((job) => !placementsByJobId.has(job.id)),
+    [jobs, placementsByJobId]
+  );
 
-    if (targetDayOffset < windowStartDayOffset || targetDayOffset >= windowStartDayOffset + windowDayCount) {
-      const nextStart = targetDayOffset - 7;
-      setWindowStartDayOffset(nextStart);
-      setWindowDayCount(INITIAL_WINDOW_DAY_COUNT);
+  const assignedJobs = useMemo(
+    () =>
+      placements
+        .map((placement) => {
+          const job = jobsById.get(placement.jobId);
+          if (job) {
+            return {
+              job,
+              placement,
+              atLabel: formatAbsoluteHourLabel(nav.timelineOrigin, placement.startIndex)
+            };
+          }
+
+          const toolItem = tools.toolInstances.find((item) => item.id === placement.jobId);
+          if (!toolItem) return null;
+
+          return {
+            job: toolItemToPaletteJob(toolItem, placement.startIndex),
+            placement,
+            atLabel: formatAbsoluteHourLabel(nav.timelineOrigin, placement.startIndex)
+          };
+        })
+        .filter((item): item is { job: Job; placement: JobPlacement; atLabel: string } => item !== null),
+    [jobsById, placements, nav.timelineOrigin, tools.toolInstances]
+  );
+
+  // ── Conflict detection ──────────────────────────────────────────────────────
+  const jobDurationById = useMemo(() => {
+    const durationById = new Map<string, number>();
+    for (const job of jobItems) durationById.set(job.id, getDurationHours(job));
+    return durationById;
+  }, [jobItems]);
+
+  const placementsByVehicle = useMemo(() => {
+    const next = new Map<string, JobPlacement[]>();
+    for (const placement of placements) {
+      const vehiclePlacements = next.get(placement.vehicleId);
+      if (vehiclePlacements) vehiclePlacements.push(placement);
+      else next.set(placement.vehicleId, [placement]);
+    }
+    return next;
+  }, [placements]);
+
+  const canDrop = useCallback((vehicleId: string, startIndex: number, payload: DragPayload | null) => {
+    if (!payload) return false;
+
+    const pendingToolInstance = tools.pendingToolDragInstanceRef.current;
+    const nextDuration =
+      jobDurationById.get(payload.jobId) ??
+      (pendingToolInstance?.id === payload.jobId ? getDurationHours(pendingToolInstance) : undefined);
+
+    if (nextDuration === undefined) return false;
+
+    const nextEnd = startIndex + nextDuration;
+    const vehiclePlacements = placementsByVehicle.get(vehicleId);
+    if (!vehiclePlacements || vehiclePlacements.length === 0) return true;
+
+    for (const placement of vehiclePlacements) {
+      if (placement.jobId === payload.jobId) continue;
+      const currentDuration = jobDurationById.get(placement.jobId);
+      if (currentDuration === undefined) continue;
+      const currentStart = placement.startIndex;
+      const currentEnd = currentStart + currentDuration;
+      if (startIndex < currentEnd && nextEnd > currentStart) return false;
     }
 
-    setJumpAbsoluteHour(targetAbsoluteHour);
-    setJumpToken((current) => current + 1);
-  };
+    return true;
+  }, [jobDurationById, placementsByVehicle, tools.pendingToolDragInstanceRef]);
 
-  useEffect(() => {
-    if (initializedJump) {
-      return;
-    }
+  // ── Ref sync effects ────────────────────────────────────────────────────────
+  useEffect(() => { hoveredDropRef.current = hoveredDrop; }, [hoveredDrop]);
+  useEffect(() => { paletteActiveRef.current = paletteActive; }, [paletteActive]);
+  useEffect(() => { activeDragRef.current = activeDrag; }, [activeDrag]);
 
-    requestJumpToAbsoluteHour(0);
-    setInitializedJump(true);
-  }, [initializedJump]);
-
-  const toDisplayIndex = (absoluteHourIndex: number) => {
-    return absoluteHourIndex - windowStartHour;
-  };
-
-  const toAbsoluteIndex = (displayHourIndex: number) => {
-    return windowStartHour + displayHourIndex;
-  };
-
-  const canDrop = (vehicleId: string, startIndex: number, payload: DragPayload | null) => {
-    return canDropJob(jobs, placements, vehicleId, startIndex, payload);
-  };
-
+  // ── Interaction State Helpers ───────────────────────────────────────────────
   const clearInteractionState = () => {
+    hoveredDropRef.current = null;
+    paletteActiveRef.current = false;
+    activeDragRef.current = null;
     setHoveredDrop(null);
     setPaletteActive(false);
     setActiveDrag(null);
@@ -157,9 +210,12 @@ export function useGanttChartState(vehicles: Vehicle[]) {
   };
 
   const handleGoToToday = () => {
-    setJumpJobId(null);
-    setJumpVehicleId(null);
-    requestJumpToAbsoluteHour(0);
+    nav.handleGoToToday();
+    clearInteractionState();
+  };
+
+  const handleCustomDateNavigate = (dateValue: string) => {
+    nav.handleCustomDateNavigate(dateValue);
     clearInteractionState();
   };
 
@@ -167,31 +223,13 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     setPaletteView(nextView);
   };
 
-  const handleCustomDateNavigate = (dateValue: string) => {
-    if (!dateValue) {
-      return;
-    }
-
-    const targetDate = new Date(`${dateValue}T00:00:00`);
-    targetDate.setHours(0, 0, 0, 0);
-    const diffMs = targetDate.getTime() - timelineOrigin.getTime();
-    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-    setJumpJobId(null);
-    setJumpVehicleId(null);
-    requestJumpToAbsoluteHour(diffHours);
-    clearInteractionState();
-  };
-
   const handleNavigateToJobPlacement = (jobId: string) => {
     const placement = findPlacement(jobId);
-    if (!placement) {
-      return;
-    }
+    if (!placement) return;
 
-    setJumpJobId(jobId);
-    setJumpVehicleId(placement.vehicleId);
-    setJumpJobToken((current) => current + 1);
-    requestJumpToAbsoluteHour(placement.startIndex);
+    nav.setJumpJobId(jobId);
+    nav.setJumpVehicleId(placement.vehicleId);
+    nav.handleNavigateToJobPlacement(jobId, placement.startIndex);
     clearInteractionState();
   };
 
@@ -201,180 +239,142 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     setPaletteFocusToken((current) => current + 1);
   };
 
+  const handleClearSelection = () => {
+    nav.handleClearSelection();
+    setPaletteFocusJobId(null);
+  };
+
+  // ── Placement Handlers ──────────────────────────────────────────────────────
   const handleUnplaceJob = (jobId: string) => {
-    const job = findJob(jobId);
+    if (jobId.startsWith("tool-instance-")) {
+      tools.removeToolInstance(jobId);
+      setPlacements((current) => current.filter((p) => p.jobId !== jobId));
+      return;
+    }
 
     setPlacements((current) => current.filter((placement) => placement.jobId !== jobId));
 
-    if (job?.origin === "tool") {
-      setJobs((current) => current.filter((currentJob) => currentJob.id !== jobId));
+    const originalJob = jobsById.get(jobId);
+    if (originalJob && onJobUpdate) {
+      onJobUpdate({ ...originalJob, assignedVehiclePlate: undefined, plannedStart: undefined });
     }
   };
 
+  const handleRemovePlacedItem = (jobId: string) => {
+    if (jobId.startsWith("tool-instance-")) {
+      tools.removeToolInstance(jobId);
+      setPlacements((current) => current.filter((p) => p.jobId !== jobId));
+      return;
+    }
+    handleUnplaceJob(jobId);
+  };
+
   const handleEditJob = (updatedJob: JobItem) => {
-    setJobs((current) =>
-      current.map((job) => (job.id === updatedJob.id ? updatedJob : job))
-    );
+    const originalJob = jobsById.get(updatedJob.id);
+    if (originalJob && onJobUpdate) {
+      const updatedJobStops = updatedJob.segments.map((seg, i) => ({
+        ...originalJob.stops[i],
+        transitFromPrevHours: seg.durationHours,
+      }));
+      onJobUpdate({ ...originalJob, stops: updatedJobStops });
+    }
     setEditingJobId(null);
   };
 
   const handleUpdatePlacement = (jobId: string, newStartIndex: number) => {
     const currentPlacement = placements.find((p) => p.jobId === jobId);
-    if (!currentPlacement) {
-      setEditingPlacementJobId(null);
-      return;
-    }
+    if (!currentPlacement) { setEditingPlacementJobId(null); return; }
 
     const job = findJob(jobId);
-    if (!job) {
-      setEditingPlacementJobId(null);
-      return;
-    }
+    if (!job) { setEditingPlacementJobId(null); return; }
 
-    const durationHours = getDurationHours(job);
+    const durationHours = getJobTotalHours(job);
     const hasConflict = isPlacementConflict(
-      jobs,
-      placements,
-      jobId,
-      currentPlacement.vehicleId,
-      newStartIndex,
-      durationHours
+      jobItems, placements, jobId, currentPlacement.vehicleId, newStartIndex, durationHours
     );
 
-    if (hasConflict) {
-      setEditingPlacementJobId(null);
-      return;
-    }
+    if (hasConflict) { setEditingPlacementJobId(null); return; }
 
     setPlacements((current) =>
       current.map((placement) =>
         placement.jobId === jobId ? { ...placement, startIndex: newStartIndex } : placement
       )
     );
+
+    if (onJobUpdate) onJobUpdate({ ...job, plannedStart: newStartIndex });
     setEditingPlacementJobId(null);
   };
 
   const handleSavePlannedStart = (jobId: string, plannedStart: number) => {
-    setJobs((current) =>
-      current.map((job) =>
-        job.id === jobId ? { ...job, plannedStart } : job
-      )
-    );
+    const job = jobsById.get(jobId);
+    if (job && onJobUpdate) onJobUpdate({ ...job, plannedStart });
     setEditingPlannedStartJobId(null);
   };
 
-  const handleClearSelection = () => {
-    setJumpJobId(null);
-    setJumpVehicleId(null);
-    setPaletteFocusJobId(null);
+  const handleResizeToolInstance = (jobId: string, nextDurationHours: number) => {
+    return tools.handleResizeToolInstance(jobId, nextDurationHours, jobItems, placements, findPlacement);
   };
 
-  const handleExtendWindowLeft = () => {
-    const addedHours = WINDOW_EXTEND_DAYS * HOURS.length;
-    setWindowStartDayOffset((current) => current - WINDOW_EXTEND_DAYS);
-    setWindowDayCount((current) => current + WINDOW_EXTEND_DAYS);
-    setPrependHours(addedHours);
-    setPrependToken((current) => current + 1);
-  };
-
-  const handleExtendWindowRight = () => {
-    setWindowDayCount((current) => current + WINDOW_EXTEND_DAYS);
-  };
-
+  // ── Drag Payload Helpers ────────────────────────────────────────────────────
   const buildJobDragPayload = (jobId: string) => {
     return { kind: "job", jobId } satisfies DragPayload;
-  };
-
-  const buildToolInstance = (templateId: string) => {
-    const template = findToolTemplate(templateId);
-    if (!template) {
-      return null;
-    }
-
-    const nextJobId = `tool-instance-${templateId}-${Date.now()}`;
-    return {
-      ...template,
-      id: nextJobId,
-      segments: template.segments.map((segment) => ({
-        ...segment,
-        id: `${nextJobId}-${segment.id}`
-      }))
-    } satisfies JobItem;
-  };
-
-  const cleanupPendingToolDrag = (jobId: string | null) => {
-    if (!jobId) {
-      setActiveToolTemplateId(null);
-      return;
-    }
-
-    const placement = placementsRef.current.find((currentPlacement) => currentPlacement.jobId === jobId);
-    if (!placement) {
-      setJobs((current) => current.filter((job) => job.id !== jobId));
-    }
-
-    setToolDragJobId(null);
-    setActiveToolTemplateId(null);
   };
 
   const getDragPayload = (event: DragEvent<HTMLElement>) => {
     return (
       parseDragPayload(event.dataTransfer.getData("application/json")) ??
       parseDragPayload(event.dataTransfer.getData("text/plain")) ??
-      activeDrag
+      activeDragRef.current
     );
   };
 
+  // ── Segment Editing ─────────────────────────────────────────────────────────
   const commitSegmentHours = (jobId: string, segmentId: string, rawValue: string) => {
     const nextHours = Number.parseFloat(rawValue);
-    if (!Number.isFinite(nextHours) || nextHours <= 0) {
-      setEditingCell(null);
-      return;
-    }
+    if (!Number.isFinite(nextHours) || nextHours <= 0) { setEditingCell(null); return; }
 
     const job = findJob(jobId);
-    if (!job) {
-      setEditingCell(null);
-      return;
-    }
+    if (!job) { setEditingCell(null); return; }
 
-    const nextJob: JobItem = {
-      ...job,
-      segments: job.segments.map((segment) =>
-        segment.id === segmentId ? { ...segment, durationHours: nextHours } : segment
-      )
+    const nextJobItem: JobItem = {
+      ...jobToJobItem(job),
+      segments: job.stops.map((stop): JobSegment => ({
+        id: stop.id,
+        label: stop.label,
+        color: stop.color,
+        durationHours: stop.id === segmentId ? nextHours : stop.transitFromPrevHours,
+      })),
     };
 
     const placement = findPlacement(jobId);
     if (placement) {
-      const nextDuration = getDurationHours(nextJob);
+      const nextDuration = getDurationHours(nextJobItem);
       const blockedByConflict = isPlacementConflict(
-        jobs,
-        placements,
-        jobId,
-        placement.vehicleId,
-        placement.startIndex,
-        nextDuration
+        jobItems, placements, jobId, placement.vehicleId, placement.startIndex, nextDuration
       );
+      if (blockedByConflict) { setEditingCell(null); return; }
+    }
 
-      if (blockedByConflict) {
-        setEditingCell(null);
-        return;
+    const originalJob = jobsById.get(jobId);
+    if (originalJob && onJobUpdate) {
+      const segIndex = originalJob.stops.findIndex((s) => s.id === segmentId);
+      if (segIndex >= 0) {
+        const updatedStops = [...originalJob.stops];
+        updatedStops[segIndex] = { ...updatedStops[segIndex], transitFromPrevHours: nextHours };
+        onJobUpdate({ ...originalJob, stops: updatedStops });
       }
     }
 
-    setJobs((current) => current.map((currentJob) => (currentJob.id === jobId ? nextJob : currentJob)));
     setEditingCell(null);
   };
 
+  // ── Drop Handlers ───────────────────────────────────────────────────────────
   const handleTimelineDrop = (vehicleId: string, displayHourIndex: number, event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    if (editMode) {
-      return;
-    }
+    if (editMode) return;
 
     const payload = getDragPayload(event);
-    const startIndex = toAbsoluteIndex(displayHourIndex);
+    const startIndex = nav.toAbsoluteIndex(displayHourIndex);
 
     if (!payload || !canDrop(vehicleId, startIndex, payload)) {
       clearInteractionState();
@@ -388,13 +388,19 @@ export function useGanttChartState(vehicles: Vehicle[]) {
           placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
         );
       }
-
       return [...current, { jobId: payload.jobId, vehicleId, startIndex }];
     });
 
-    if (payload.jobId === toolDragJobId) {
-      setToolDragJobId(null);
-      setActiveToolTemplateId(null);
+    const originalJob = jobsById.get(payload.jobId);
+    if (originalJob && onJobUpdate) {
+      onJobUpdate({ ...originalJob, assignedVehiclePlate: vehicleId, plannedStart: startIndex });
+    }
+
+    if (payload.jobId === tools.toolDragJobId) {
+      tools.pendingToolDragJobIdRef.current = null;
+      tools.pendingToolDragInstanceRef.current = null;
+      tools.setToolDragJobId(null);
+      tools.setActiveToolTemplateId(null);
     }
 
     clearInteractionState();
@@ -402,139 +408,151 @@ export function useGanttChartState(vehicles: Vehicle[]) {
 
   const handlePaletteDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    if (editMode) {
-      return;
-    }
+    if (editMode) return;
 
     const payload = getDragPayload(event);
-    if (!payload) {
+    if (!payload) { clearInteractionState(); return; }
+
+    if (payload.jobId === tools.toolDragJobId) {
+      tools.pendingToolDragJobIdRef.current = null;
+      tools.pendingToolDragInstanceRef.current = null;
+      tools.removeToolInstance(payload.jobId);
+      tools.setToolDragJobId(null);
+      tools.setActiveToolTemplateId(null);
+      setPlacements((current) => current.filter((p) => p.jobId !== payload.jobId));
       clearInteractionState();
       return;
     }
 
-    if (payload.jobId === toolDragJobId) {
-      setJobs((current) => current.filter((job) => job.id !== payload.jobId));
-      setToolDragJobId(null);
-      setActiveToolTemplateId(null);
+    if (payload.jobId.startsWith("tool-instance-")) {
+      tools.pendingToolDragJobIdRef.current = null;
+      tools.pendingToolDragInstanceRef.current = null;
+      tools.removeToolInstance(payload.jobId);
+      setPlacements((current) => current.filter((p) => p.jobId !== payload.jobId));
       clearInteractionState();
       return;
     }
 
     setPlacements((current) => current.filter((placement) => placement.jobId !== payload.jobId));
+    const originalJob = jobsById.get(payload.jobId);
+    if (originalJob && onJobUpdate) {
+      onJobUpdate({ ...originalJob, assignedVehiclePlate: undefined, plannedStart: undefined });
+    }
     clearInteractionState();
   };
 
+  // ── DragOver / Hover Handlers ───────────────────────────────────────────────
   const handleTimelineSlotDragOver = (vehicleId: string, displayHourIndex: number, event: DragEvent<HTMLButtonElement>) => {
-    if (editMode) {
-      return;
-    }
+    if (editMode) return;
 
     event.preventDefault();
     const payload = getDragPayload(event);
-    setActiveDrag(payload);
-    setPaletteActive(false);
-    setHoveredDrop({
-      vehicleId,
-      startIndex: toAbsoluteIndex(displayHourIndex)
-    });
+
+    if (!isSameDragPayload(activeDragRef.current, payload)) {
+      activeDragRef.current = payload;
+      setActiveDrag(payload);
+    }
+
+    if (paletteActiveRef.current) {
+      paletteActiveRef.current = false;
+      setPaletteActive(false);
+    }
+
+    const nextHoveredDrop = { vehicleId, startIndex: nav.toAbsoluteIndex(displayHourIndex) };
+    if (
+      hoveredDropRef.current?.vehicleId !== nextHoveredDrop.vehicleId ||
+      hoveredDropRef.current?.startIndex !== nextHoveredDrop.startIndex
+    ) {
+      hoveredDropRef.current = nextHoveredDrop;
+      setHoveredDrop(nextHoveredDrop);
+    }
   };
 
   const handlePaletteDragOver = (event: DragEvent<HTMLElement>) => {
-    if (editMode) {
-      return;
-    }
-
+    if (editMode) return;
     event.preventDefault();
-    setPaletteActive(true);
-    setHoveredDrop(null);
+    if (!paletteActiveRef.current) { paletteActiveRef.current = true; setPaletteActive(true); }
+    if (hoveredDropRef.current !== null) { hoveredDropRef.current = null; setHoveredDrop(null); }
   };
 
   const handlePaletteDragLeave = () => {
-    setPaletteActive(false);
+    if (paletteActiveRef.current) { paletteActiveRef.current = false; setPaletteActive(false); }
   };
 
+  // ── Placed Job Pointer Handlers (desktop timeline DnD) ──────────────────────
   const handlePlacedJobPointerStart = (jobId: string) => {
-    if (editMode) {
-      return;
-    }
-
-    setActiveDrag(buildJobDragPayload(jobId));
-    setPaletteActive(false);
-    setHoveredDrop(null);
+    if (editMode) return;
+    const payload = buildJobDragPayload(jobId);
+    activeDragRef.current = payload;
+    setActiveDrag(payload);
+    if (paletteActiveRef.current) { paletteActiveRef.current = false; setPaletteActive(false); }
+    if (hoveredDropRef.current !== null) { hoveredDropRef.current = null; setHoveredDrop(null); }
   };
 
   const handlePlacedJobPointerHover = (vehicleId: string, startIndex: number) => {
-    if (editMode || !activeDrag) {
-      return;
+    if (editMode || !activeDragRef.current) return;
+    if (paletteActiveRef.current) { paletteActiveRef.current = false; setPaletteActive(false); }
+    if (
+      hoveredDropRef.current?.vehicleId !== vehicleId ||
+      hoveredDropRef.current?.startIndex !== startIndex
+    ) {
+      const nextHoveredDrop = { vehicleId, startIndex };
+      hoveredDropRef.current = nextHoveredDrop;
+      setHoveredDrop(nextHoveredDrop);
     }
-
-    setPaletteActive(false);
-    setHoveredDrop({ vehicleId, startIndex });
   };
 
   const handlePlacedJobPointerLeave = () => {
-    if (editMode) {
-      return;
-    }
-
-    setHoveredDrop(null);
-    setPaletteActive(false);
+    if (editMode) return;
+    if (hoveredDropRef.current !== null) { hoveredDropRef.current = null; setHoveredDrop(null); }
+    if (paletteActiveRef.current) { paletteActiveRef.current = false; setPaletteActive(false); }
   };
 
   const handlePlacedJobPointerCommit = (vehicleId: string, startIndex: number) => {
-    if (editMode) {
-      return;
-    }
-
-    if (!activeDrag || !canDrop(vehicleId, startIndex, activeDrag)) {
+    if (editMode) return;
+    const payload = activeDragRef.current;
+    if (!payload || !canDrop(vehicleId, startIndex, payload)) {
       clearInteractionState();
       return;
     }
-
     setPlacements((current) =>
       current.map((placement) =>
-        placement.jobId === activeDrag.jobId ? { ...placement, vehicleId, startIndex } : placement
+        placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
       )
     );
     clearInteractionState();
   };
 
-  const handlePlacedJobPointerCancel = () => {
-    clearInteractionState();
-  };
+  const handlePlacedJobPointerCancel = () => clearInteractionState();
 
+  // ── Job Drag Start (HTML5 DnD) ──────────────────────────────────────────────
   const handleJobDragStart = (jobId: string, event: DragEvent<HTMLElement>) => {
-    if (editMode) {
-      event.preventDefault();
-      return;
-    }
-
+    if (editMode) { event.preventDefault(); return; }
     const payload = buildJobDragPayload(jobId);
     const rawPayload = JSON.stringify(payload);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("application/json", rawPayload);
     event.dataTransfer.setData("text/plain", rawPayload);
+    activeDragRef.current = payload;
     setActiveDrag(payload);
   };
 
+  // ── Tool Template Drag ──────────────────────────────────────────────────────
   const handleToolTemplateDragStart = (templateId: string, event: DragEvent<HTMLElement>) => {
-    if (editMode) {
-      event.preventDefault();
-      return;
-    }
+    if (editMode) { event.preventDefault(); return; }
 
-    const nextToolInstance = buildToolInstance(templateId);
-    if (!nextToolInstance) {
-      event.preventDefault();
-      return;
-    }
+    const nextToolInstance = tools.buildToolInstance(templateId);
+    if (!nextToolInstance) { event.preventDefault(); return; }
 
     const payload = buildJobDragPayload(nextToolInstance.id);
     const rawPayload = JSON.stringify(payload);
 
-    setJobs((current) => [...current, nextToolInstance]);
-    setToolDragJobId(nextToolInstance.id);
-    setActiveToolTemplateId(templateId);
+    tools.upsertToolInstance(nextToolInstance);
+    tools.pendingToolDragJobIdRef.current = nextToolInstance.id;
+    tools.pendingToolDragInstanceRef.current = nextToolInstance;
+    tools.setToolDragJobId(nextToolInstance.id);
+    tools.setActiveToolTemplateId(templateId);
+    activeDragRef.current = payload;
     setActiveDrag(payload);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("application/json", rawPayload);
@@ -542,123 +560,19 @@ export function useGanttChartState(vehicles: Vehicle[]) {
   };
 
   const handleToolTemplateDragEnd = () => {
-    cleanupPendingToolDrag(toolDragJobIdRef.current);
+    tools.cleanupPendingToolDrag(tools.pendingToolDragJobIdRef.current);
     clearInteractionState();
   };
 
+  // ── Segment Edit Handlers ───────────────────────────────────────────────────
   const handleSegmentClick = (jobId: string, segmentId: string, durationHours: number) => {
-    if (!editMode) {
-      return;
-    }
-
-    setEditingCell({
-      jobId,
-      segmentId,
-      value: String(durationHours)
-    });
-  };
-
-  // ── Pointer Drag Handlers (Mobile Support) ───────────────────────────────
-  const handlePointerDragStart = (jobId: string) => {
-    if (editMode) {
-      return;
-    }
-    setActiveDrag(buildJobDragPayload(jobId));
-    setPaletteActive(false);
-    setHoveredDrop(null);
-  };
-
-  const handlePointerDragMove = (x: number, y: number) => {
-    if (editMode || !activeDrag) {
-      return;
-    }
-
-    const targetElement = document.elementFromPoint(x, y);
-    if (!targetElement) {
-      return;
-    }
-
-    // Check if we're over a slot cell
-    const slotCell = targetElement.closest("[data-slot-vehicle-id]");
-    if (slotCell) {
-      const vehicleId = slotCell.getAttribute("data-slot-vehicle-id");
-      const hourIndex = parseInt(slotCell.getAttribute("data-slot-hour-index") ?? "0", 10);
-      if (vehicleId && !isNaN(hourIndex)) {
-        setPaletteActive(false);
-        setHoveredDrop({
-          vehicleId,
-          startIndex: toAbsoluteIndex(hourIndex)
-        });
-        return;
-      }
-    }
-
-    // Check if we're over the palette (to unplace)
-    const palette = targetElement.closest(".job-palette");
-    if (palette) {
-      setPaletteActive(true);
-      setHoveredDrop(null);
-    }
-  };
-
-  const handlePointerDragEnd = (x: number, y: number, target: HTMLElement | null) => {
-    if (editMode || !activeDrag) {
-      clearInteractionState();
-      return;
-    }
-
-    if (!target) {
-      clearInteractionState();
-      return;
-    }
-
-    // Check if dropped on a slot cell
-    const slotCell = target.closest("[data-slot-vehicle-id]");
-    if (slotCell) {
-      const vehicleId = slotCell.getAttribute("data-slot-vehicle-id");
-      const hourIndex = parseInt(slotCell.getAttribute("data-slot-hour-index") ?? "0", 10);
-      if (vehicleId && !isNaN(hourIndex)) {
-        const startIndex = toAbsoluteIndex(hourIndex);
-        if (canDrop(vehicleId, startIndex, activeDrag)) {
-          setPlacements((current) => {
-            const existing = current.find((placement) => placement.jobId === activeDrag.jobId);
-            if (existing) {
-              return current.map((placement) =>
-                placement.jobId === activeDrag.jobId ? { ...placement, vehicleId, startIndex } : placement
-              );
-            }
-            return [...current, { jobId: activeDrag.jobId, vehicleId, startIndex }];
-          });
-        }
-      }
-      clearInteractionState();
-      return;
-    }
-
-    // Check if dropped on palette (to unplace)
-    const palette = target.closest(".job-palette");
-    if (palette) {
-      if (activeDrag.jobId.startsWith("tool-instance-")) {
-        setJobs((current) => current.filter((job) => job.id !== activeDrag.jobId));
-      } else {
-        setPlacements((current) => current.filter((placement) => placement.jobId !== activeDrag.jobId));
-      }
-      clearInteractionState();
-      return;
-    }
-
-    clearInteractionState();
-  };
-
-  const handlePointerDragCancel = () => {
-    clearInteractionState();
+    if (!editMode) return;
+    setEditingCell({ jobId, segmentId, value: String(durationHours) });
   };
 
   const handleSegmentInputChange = (value: string) => {
     setEditingCell((current) =>
-      current
-        ? { ...current, value: value.replace(/[^0-9.]/g, "") }
-        : current
+      current ? { ...current, value: value.replace(/[^0-9.]/g, "") } : current
     );
   };
 
@@ -668,20 +582,124 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     segmentId: string,
     value: string
   ) => {
-    if (event.key === "Enter") {
-      commitSegmentHours(jobId, segmentId, value);
+    if (event.key === "Enter") commitSegmentHours(jobId, segmentId, value);
+    if (event.key === "Escape") setEditingCell(null);
+  };
+
+  // ── Pointer Drag Handlers (Mobile Support) ──────────────────────────────────
+  const handlePointerDragStart = (jobId: string) => {
+    if (editMode) return;
+    const payload = buildJobDragPayload(jobId);
+    activeDragRef.current = payload;
+    setActiveDrag(payload);
+    if (paletteActiveRef.current) { paletteActiveRef.current = false; setPaletteActive(false); }
+    if (hoveredDropRef.current !== null) { hoveredDropRef.current = null; setHoveredDrop(null); }
+  };
+
+  const handlePointerDragMove = (x: number, y: number) => {
+    if (editMode || !activeDragRef.current) return;
+
+    const targetElement = document.elementFromPoint(x, y);
+    if (!targetElement) return;
+
+    const slotCell = targetElement.closest("[data-slot-vehicle-id]");
+    if (slotCell) {
+      const vehicleId = slotCell.getAttribute("data-slot-vehicle-id");
+      const hourIndex = parseInt(slotCell.getAttribute("data-slot-hour-index") ?? "0", 10);
+      if (vehicleId && !isNaN(hourIndex)) {
+        if (paletteActiveRef.current) { paletteActiveRef.current = false; setPaletteActive(false); }
+        const nextHoveredDrop = { vehicleId, startIndex: nav.toAbsoluteIndex(hourIndex) };
+        if (
+          hoveredDropRef.current?.vehicleId !== nextHoveredDrop.vehicleId ||
+          hoveredDropRef.current?.startIndex !== nextHoveredDrop.startIndex
+        ) {
+          hoveredDropRef.current = nextHoveredDrop;
+          setHoveredDrop(nextHoveredDrop);
+        }
+        return;
+      }
     }
 
-    if (event.key === "Escape") {
-      setEditingCell(null);
+    const palette = targetElement.closest(".job-palette");
+    if (palette) {
+      if (!paletteActiveRef.current) { paletteActiveRef.current = true; setPaletteActive(true); }
+      if (hoveredDropRef.current !== null) { hoveredDropRef.current = null; setHoveredDrop(null); }
     }
   };
 
+  const handlePointerDragEnd = (x: number, y: number, target: HTMLElement | null) => {
+    const payload = activeDragRef.current;
+    if (editMode || !payload) { clearInteractionState(); return; }
+    if (!target) { clearInteractionState(); return; }
+
+    const slotCell = target.closest("[data-slot-vehicle-id]");
+    if (slotCell) {
+      const vehicleId = slotCell.getAttribute("data-slot-vehicle-id");
+      const hourIndex = parseInt(slotCell.getAttribute("data-slot-hour-index") ?? "0", 10);
+      if (vehicleId && !isNaN(hourIndex)) {
+        const startIndex = nav.toAbsoluteIndex(hourIndex);
+        if (canDrop(vehicleId, startIndex, payload)) {
+          setPlacements((current) => {
+            const existing = current.find((placement) => placement.jobId === payload.jobId);
+            if (existing) {
+              return current.map((placement) =>
+                placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
+              );
+            }
+            return [...current, { jobId: payload.jobId, vehicleId, startIndex }];
+          });
+        }
+      }
+      clearInteractionState();
+      return;
+    }
+
+    const palette = target.closest(".job-palette");
+    if (palette) {
+      if (payload.jobId.startsWith("tool-instance-")) {
+        tools.pendingToolDragJobIdRef.current = null;
+        tools.pendingToolDragInstanceRef.current = null;
+        tools.removeToolInstance(payload.jobId);
+        setPlacements((current) => current.filter((p) => p.jobId !== payload.jobId));
+      } else {
+        setPlacements((current) => current.filter((placement) => placement.jobId !== payload.jobId));
+      }
+      clearInteractionState();
+      return;
+    }
+
+    clearInteractionState();
+  };
+
+  const handlePointerDragCancel = () => clearInteractionState();
+
+  // ── Return ──────────────────────────────────────────────────────────────────
   return {
-    days,
-    displayTotalHours,
-    windowStartHour,
+    // From navigation sub-hook
+    days: nav.days,
+    displayTotalHours: nav.displayTotalHours,
+    windowStartHour: nav.windowStartHour,
+    jumpAbsoluteHour: nav.jumpAbsoluteHour,
+    jumpToken: nav.jumpToken,
+    jumpJobId: nav.jumpJobId,
+    jumpVehicleId: nav.jumpVehicleId,
+    jumpJobToken: nav.jumpJobToken,
+    prependHours: nav.prependHours,
+    prependToken: nav.prependToken,
+    hourWidth: nav.hourWidth,
+    setHourWidth: nav.setHourWidth,
+    toDisplayIndex: nav.toDisplayIndex,
+    toAbsoluteIndex: nav.toAbsoluteIndex,
+    timelineOrigin: nav.timelineOrigin,
+    handleExtendWindowLeft: nav.handleExtendWindowLeft,
+    handleExtendWindowRight: nav.handleExtendWindowRight,
+
+    // From tool instances sub-hook
+    activeToolTemplateId: tools.activeToolTemplateId,
+
+    // Local state
     jobs,
+    jobItems,
     placements,
     hoveredDrop,
     paletteActive,
@@ -690,24 +708,20 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     paletteView,
     paletteFocusJobId,
     paletteFocusToken,
-    activeToolTemplateId,
-    jumpAbsoluteHour,
-    jumpToken,
-    jumpJobId,
-    jumpVehicleId,
-    jumpJobToken,
-    prependHours,
-    prependToken,
-    hourWidth,
     editingCell,
     editMode,
     paletteJobs,
     assignedJobs,
+    editingJobId,
+    setEditingJobId,
+    editingPlacementJobId,
+    setEditingPlacementJobId,
+    editingPlannedStartJobId,
+    setEditingPlannedStartJobId,
+
+    // Handlers
     canDrop,
-    toDisplayIndex,
-    toAbsoluteIndex,
     clearInteractionState,
-    setHourWidth,
     handleModeChange,
     handlePaletteViewChange,
     handleGoToToday,
@@ -715,19 +729,12 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     handleNavigateToJobPlacement,
     handleGoToPlacedJobInPalette,
     handleUnplaceJob,
+    handleRemovePlacedItem,
     handleEditJob,
     handleClearSelection,
-    editingJobId,
-    setEditingJobId,
-    editingPlacementJobId,
-    setEditingPlacementJobId,
     handleUpdatePlacement,
+    handleResizeToolInstance,
     handleSavePlannedStart,
-    editingPlannedStartJobId,
-    setEditingPlannedStartJobId,
-    timelineOrigin,
-    handleExtendWindowLeft,
-    handleExtendWindowRight,
     handleTimelineDrop,
     handlePaletteDrop,
     handleTimelineSlotDragOver,
@@ -748,37 +755,14 @@ export function useGanttChartState(vehicles: Vehicle[]) {
     handleSegmentClick,
     handleSegmentInputChange,
     handleSegmentInputKeyDown,
-    commitSegmentHours
+    commitSegmentHours,
   };
 }
 
-function formatAbsoluteHourLabel(origin: Date, absoluteHourIndex: number) {
-  const target = new Date(origin);
-  target.setHours(target.getHours() + absoluteHourIndex);
+// ── Private Helpers ───────────────────────────────────────────────────────────
 
-  const datePart = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short"
-  }).format(target);
-  const timePart = new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).format(target);
-
-  return `${datePart} ${timePart}`;
-}
-
-function buildInitialPlacements(vehicles: Vehicle[]): JobPlacement[] {
-  const firstVehicle = vehicles[0];
-  const secondVehicle = vehicles[1] ?? firstVehicle;
-
-  if (!firstVehicle) {
-    return [];
-  }
-
-  return [
-    { jobId: "job-002", vehicleId: firstVehicle.licensePlate, startIndex: 9 },
-    { jobId: "job-003", vehicleId: secondVehicle.licensePlate, startIndex: 30 }
-  ];
+function isSameDragPayload(a: DragPayload | null, b: DragPayload | null) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.kind === b.kind && a.jobId === b.jobId;
 }

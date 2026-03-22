@@ -1,5 +1,6 @@
 import { useEffect, useRef, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { DragPayload, JobItem } from "@/lib/gantt";
+import type { DragPayload, JobItem, JobPlacement } from "@/lib/gantt";
+import type { Job } from "@/features/gantt/types/job";
 import type { PaletteView } from "@/features/gantt/hooks/useGanttChartState";
 import { PaletteJobCard } from "@/features/gantt/components/PaletteJobCard";
 
@@ -9,8 +10,8 @@ type JobPaletteProps = {
   paletteView: PaletteView;
   paletteFocusJobId: string | null;
   paletteFocusToken: number;
-  paletteJobs: JobItem[];
-  assignedJobs: Array<{ job: JobItem; atLabel: string }>;
+  paletteJobs: Job[];
+  assignedJobs: Array<{ job: Job; placement: JobPlacement; atLabel: string }>;
   activeDrag: DragPayload | null;
   editingJobId: string | null;
   editingPlacementJobId: string | null;

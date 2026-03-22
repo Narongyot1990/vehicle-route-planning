@@ -61,7 +61,9 @@ type TimelineBoardProps = {
     value: string
   ) => void;
   onGoToPlacedJobInPalette: (jobId: string) => void;
+  onResizeToolInstance: (jobId: string, nextDurationHours: number) => boolean;
   hourWidth: number;
+  onJobBarClick: (jobId: string) => void;
 };
 
 const EDGE_TRIGGER_PX = 360;
@@ -106,7 +108,9 @@ export function TimelineBoard({
   onSegmentInputBlur,
   onSegmentInputKeyDown,
   onGoToPlacedJobInPalette,
-  hourWidth
+  onResizeToolInstance,
+  hourWidth,
+  onJobBarClick
 }: TimelineBoardProps) {
   const leftColumnWidth = `clamp(52px, 16vw, ${LEFT_COLUMN_WIDTH}px)`;
   const boardScrollRef = useRef<HTMLDivElement>(null);
@@ -467,8 +471,10 @@ export function TimelineBoard({
             onSegmentInputBlur={onSegmentInputBlur}
             onSegmentInputKeyDown={onSegmentInputKeyDown}
             onGoToPlacedJobInPalette={onGoToPlacedJobInPalette}
+            onResizeToolInstance={onResizeToolInstance}
             jumpJobId={jumpJobId}
             hourWidth={hourWidth}
+            onJobBarClick={onJobBarClick}
           />
         ))}
       </div>

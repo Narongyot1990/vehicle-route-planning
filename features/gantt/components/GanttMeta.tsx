@@ -1,4 +1,5 @@
 import { useRef, type ChangeEvent } from "react";
+import Link from "next/link";
 import type { InteractionMode } from "@/features/gantt/hooks/useGanttChartState";
 
 type GanttMetaProps = {
@@ -59,7 +60,14 @@ export function GanttMeta({
 
   return (
     <div className="gantt-meta minimal">
-      {/* Date navigation */}
+      {/* App Navigation Links (Left side) */}
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <Link href="/jobs" style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: "6px", textDecoration: "none" }}>📋 Job Orders</Link>
+        <Link href="/customers" style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: "6px", textDecoration: "none" }}>👥 Customers</Link>
+        <Link href="/routes" style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: "6px", textDecoration: "none" }}>🗺️ Routes</Link>
+      </div>
+
+      {/* Date navigation & Controls (Right side) */}
       <div className="meta-panel">
         <div className="control-cluster" aria-label="Date navigation">
           <div className="calendar-controls">

@@ -36,8 +36,10 @@ type VehicleTimelineRowProps = {
     value: string
   ) => void;
   onGoToPlacedJobInPalette: (jobId: string) => void;
+  onResizeToolInstance: (jobId: string, nextDurationHours: number) => boolean;
   jumpJobId: string | null;
   hourWidth: number;
+  onJobBarClick: (jobId: string) => void;
 };
 
 export function VehicleTimelineRow({
@@ -59,8 +61,10 @@ export function VehicleTimelineRow({
   onSegmentInputBlur,
   onSegmentInputKeyDown,
   onGoToPlacedJobInPalette,
+  onResizeToolInstance,
   jumpJobId,
-  hourWidth
+  hourWidth,
+  onJobBarClick
 }: VehicleTimelineRowProps) {
   const vehiclePlacements = placements.filter((placement) => placement.vehicleId === vehicle.licensePlate);
   const findJob = (jobId: string) => jobs.find((job) => job.id === jobId);
@@ -154,7 +158,9 @@ export function VehicleTimelineRow({
                 onSegmentInputBlur={onSegmentInputBlur}
                 onSegmentInputKeyDown={onSegmentInputKeyDown}
                 jumpJobId={jumpJobId}
+                onResizeToolInstance={onResizeToolInstance}
                 hourWidth={hourWidth}
+                onJobBarClick={onJobBarClick}
               />
             );
           })}
