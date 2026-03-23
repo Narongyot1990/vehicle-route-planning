@@ -3101,7 +3101,8 @@ select {
 
 .routes-v2__editor {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  max-width: 560px;
 }
 
 .routes-v2__editor-meta,
@@ -3150,6 +3151,10 @@ select {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
+}
+
+.routes-v2__editor .routes-v2__grid {
+  grid-template-columns: 1fr;
 }
 
 .routes-v2__field {

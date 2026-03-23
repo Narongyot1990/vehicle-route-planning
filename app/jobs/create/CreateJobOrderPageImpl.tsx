@@ -309,7 +309,7 @@ export default function CreateJobOrderPageImpl() {
               <section className="job-create-v2__card">
                 <div className="job-create-v2__section-head job-create-v2__section-head--compact">
                   <span>01</span>
-                  <h2>Mode</h2>
+                  <h2>Setup</h2>
                 </div>
                 <div className="job-create-v2__mode-switch">
                   <button type="button" className={`job-create-v2__mode-button${mode === "bulk" ? " is-active" : ""}`} onClick={() => setMode("bulk")}>
@@ -319,26 +319,22 @@ export default function CreateJobOrderPageImpl() {
                     Single
                   </button>
                 </div>
-              </section>
-
-              <section className="job-create-v2__card">
-                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
-                  <span>02</span>
-                  <h2>Customer</h2>
-                </div>
-                <label className="job-create-v2__field">
-                  <span>Customer *</span>
-                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                    <option value="">Select customer</option>
-                    {customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </select>
-                </label>
-              </section>
-
-              <section className="job-create-v2__card">
-                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
-                  <span>03</span>
-                  <h2>Plan</h2>
+                <div className="job-create-v2__grid">
+                  <label className="job-create-v2__field">
+                    <span>Customer *</span>
+                    <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                      <option value="">Select customer</option>
+                      {customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="job-create-v2__field">
+                    <span>Start date *</span>
+                    <input type="date" value={plannedDate} onChange={(e) => setPlannedDate(e.target.value)} />
+                  </label>
+                  <label className="job-create-v2__field">
+                    <span>Start time</span>
+                    <input type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} />
+                  </label>
                 </div>
                 <label className="job-create-v2__field">
                   <span>Truck type *</span>
@@ -350,16 +346,6 @@ export default function CreateJobOrderPageImpl() {
                     ))}
                   </div>
                 </label>
-                <div className="job-create-v2__grid">
-                  <label className="job-create-v2__field">
-                    <span>Start date *</span>
-                    <input type="date" value={plannedDate} onChange={(e) => setPlannedDate(e.target.value)} />
-                  </label>
-                  <label className="job-create-v2__field">
-                    <span>Start time</span>
-                    <input type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} />
-                  </label>
-                </div>
                 <div className="job-create-v2__option-grid">
                   <label className="job-create-v2__option">
                     <div>
@@ -396,7 +382,7 @@ export default function CreateJobOrderPageImpl() {
 
               <section className="job-create-v2__card">
                 <div className="job-create-v2__section-head job-create-v2__section-head--compact">
-                  <span>04</span>
+                  <span>02</span>
                   <h2>{mode === "bulk" ? "Routes" : "Route"}</h2>
                 </div>
                 <div className="job-create-v2__route-toolbar">
