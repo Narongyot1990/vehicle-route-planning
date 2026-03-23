@@ -2087,9 +2087,9 @@ select {
 .job-create-v2 {
   height: 100%;
   min-height: 100vh;
-  padding: 24px 16px 40px;
+  padding: 10px 10px 18px;
   overflow-y: auto;
-  background: radial-gradient(circle at top left, rgba(191, 219, 254, 0.45), transparent 32%), linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
+  background: #f8fafc;
 }
 
 .job-create-v2--success {
@@ -2099,11 +2099,11 @@ select {
 }
 
 .job-create-v2__shell {
-  max-width: 1180px;
+  max-width: 720px;
   margin: 0 auto;
   display: grid;
-  gap: 16px;
-  padding-bottom: 120px;
+  gap: 10px;
+  padding-bottom: 74px;
 }
 
 .job-create-v2__header,
@@ -2112,22 +2112,22 @@ select {
 .job-create-v2__loading,
 .job-create-v2__success-card {
   border: 1px solid #e2e8f0;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 20px 40px -30px rgba(15, 23, 42, 0.38);
+  background: #fff;
+  box-shadow: none;
 }
 
 .job-create-v2__header,
 .job-create-v2__card,
 .job-create-v2__summary,
 .job-create-v2__success-card {
-  border-radius: 20px;
+  border-radius: 12px;
 }
 
 .job-create-v2__header {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 20px;
+  gap: 8px;
+  padding: 10px 12px;
   flex-wrap: wrap;
 }
 
@@ -2140,8 +2140,8 @@ select {
 }
 
 .job-create-v2__header h1 {
-  margin-top: 10px;
-  font-size: 1.95rem;
+  margin-top: 0;
+  font-size: 1.02rem;
   letter-spacing: -0.03em;
 }
 
@@ -2163,17 +2163,16 @@ select {
 
 .job-create-v2__back,
 .job-create-v2__secondary {
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: #334155;
   font-weight: 700;
   cursor: pointer;
 }
 
-.job-create-v2__jobno,
 .job-create-v2__info,
 .job-create-v2__preview,
 .job-create-v2__option,
@@ -2182,15 +2181,6 @@ select {
   gap: 8px;
 }
 
-.job-create-v2__jobno {
-  min-width: 170px;
-  padding: 14px 16px;
-  border: 1px solid #dbe5f0;
-  border-radius: 16px;
-  background: #f8fafc;
-}
-
-.job-create-v2__jobno span,
 .job-create-v2__eyebrow,
 .job-create-v2__summary-row span,
 .job-create-v2__stack strong {
@@ -2201,7 +2191,6 @@ select {
   letter-spacing: 0.08em;
 }
 
-.job-create-v2__jobno strong,
 .job-create-v2__summary strong,
 .job-create-v2__meta strong,
 .job-create-v2__stack span,
@@ -2219,7 +2208,7 @@ select {
 .job-create-v2__layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 10px;
   align-items: start;
 }
 
@@ -2228,30 +2217,28 @@ select {
 .job-create-v2__actions,
 .job-create-v2__stack {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
-.job-create-v2__card {
-  padding: 20px;
-}
+.job-create-v2__card { padding: 10px; }
 
 .job-create-v2__section-head {
   display: flex;
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .job-create-v2__section-head > span:first-child {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   background: #dbeafe;
   color: #1d4ed8;
-  font-size: 0.8rem;
+  font-size: 0.62rem;
   font-weight: 800;
 }
 
@@ -2260,23 +2247,23 @@ select {
 .job-create-v2__stop-grid,
 .job-create-v2__schedule-box {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .job-create-v2__grid,
 .job-create-v2__option-grid {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .job-create-v2__stop-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .job-create-v2__schedule-box {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  padding: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  padding: 10px;
   border: 1px solid #bbf7d0;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #f0fdf4;
 }
 
@@ -2305,7 +2292,7 @@ select {
 
 .job-create-v2__field > span {
   color: #334155;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 700;
 }
 
@@ -2314,10 +2301,10 @@ select {
 .job-create-v2__field textarea,
 .job-create-v2__option input[type="text"] {
   width: 100%;
-  min-height: 44px;
-  padding: 11px 12px;
+  min-height: 36px;
+  padding: 8px 10px;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: #0f172a;
   font: inherit;
@@ -2325,15 +2312,15 @@ select {
 }
 
 .job-create-v2__field textarea {
-  min-height: 96px;
+  min-height: 68px;
   resize: vertical;
 }
 
 .job-create-v2__info,
 .job-create-v2__preview {
-  padding: 14px;
+  padding: 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #f8fafc;
 }
 
@@ -2344,28 +2331,29 @@ select {
 
 .job-create-v2__truck-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
 }
 
 .job-create-v2__mode-switch {
   display: inline-flex;
-  gap: 8px;
-  padding: 4px;
+  gap: 6px;
+  padding: 3px;
   border: 1px solid #dbe5f0;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #f8fafc;
 }
 
 .job-create-v2__mode-button {
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: #475569;
   font: inherit;
-  font-weight: 800;
+  font-size: 0.8rem;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -2375,20 +2363,15 @@ select {
   box-shadow: 0 8px 20px -16px rgba(15, 23, 42, 0.55);
 }
 
-.job-create-v2__mini-note {
-  margin: 10px 0 0;
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
 .job-create-v2__truck-grid button {
-  min-height: 46px;
-  padding: 12px;
+  min-height: 34px;
+  padding: 8px;
   border: 1px solid #cbd5e1;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #fff;
   color: #0f172a;
-  font-weight: 800;
+  font-size: 0.8rem;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -2413,11 +2396,11 @@ select {
 .job-create-v2__pills span {
   display: inline-flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: #e2e8f0;
   color: #334155;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
@@ -2430,7 +2413,7 @@ select {
 
 .job-create-v2__route-toolbar {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .job-create-v2__route-actions {
@@ -2443,36 +2426,36 @@ select {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .job-create-v2__selection-summary span {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 28px;
+  padding: 0 8px;
   border: 1px solid #dbe5f0;
   border-radius: 999px;
   background: #f8fafc;
   color: #475569;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
 .job-create-v2__route-picker {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .job-create-v2__route-choice {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   width: 100%;
-  padding: 14px;
+  padding: 8px;
   border: 1px solid #dbe5f0;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #fff;
   color: #0f172a;
   text-align: left;
@@ -2495,8 +2478,8 @@ select {
 
 .job-create-v2__route-choice-head span {
   color: #64748b;
-  font-size: 0.76rem;
-  font-weight: 800;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -2726,8 +2709,7 @@ select {
 }
 
 .job-create-v2__top-strip {
-  display: grid;
-  gap: 12px;
+  display: none;
 }
 
 .job-create-v2__status-strip,
@@ -2808,13 +2790,12 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
+  gap: 8px;
+  padding: 8px 10px;
   border: 1px solid #dbe5f0;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 40px -30px rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: none;
 }
 
 .job-create-v2__action-controls {
@@ -2852,9 +2833,9 @@ select {
 .entity-create {
   height: 100%;
   min-height: 100vh;
-  padding: 24px 16px 40px;
+  padding: 10px 10px 18px;
   overflow-y: auto;
-  background: linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
+  background: #f8fafc;
 }
 
 .entity-create--success {
@@ -2864,42 +2845,42 @@ select {
 }
 
 .entity-create__shell {
-  max-width: 760px;
+  max-width: 520px;
   margin: 0 auto;
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .entity-create__header,
 .entity-create__form,
 .entity-create__success-card {
   border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 20px 40px -30px rgba(15, 23, 42, 0.38);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: none;
 }
 
 .entity-create__header,
 .entity-create__form {
-  padding: 20px;
+  padding: 10px;
 }
 
 .entity-create__title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .entity-create__icon-button,
 .routes-v2__icon-button {
-  width: 40px;
-  height: 40px;
+  min-width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: #334155;
   cursor: pointer;
@@ -2925,13 +2906,13 @@ select {
 
 .entity-create__form {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .entity-create__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
 }
 
 .entity-create__field {
@@ -2945,7 +2926,7 @@ select {
 
 .entity-create__field > span {
   color: #334155;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 700;
 }
 
@@ -2955,10 +2936,10 @@ select {
 .routes-v2__field textarea,
 .routes-v2__field select {
   width: 100%;
-  min-height: 44px;
-  padding: 11px 12px;
+  min-height: 36px;
+  padding: 8px 10px;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: #0f172a;
   font: inherit;
@@ -2974,7 +2955,7 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -3004,10 +2985,10 @@ select {
 .entity-create__ghost,
 .routes-v2__ghost-button,
 .routes-v2__secondary-button {
-  min-height: 42px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: #334155;
   font-weight: 700;
@@ -3016,13 +2997,13 @@ select {
 
 .entity-create__primary,
 .routes-v2__primary-button {
-  min-height: 42px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: #fff;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -3064,16 +3045,16 @@ select {
 .routes-v2 {
   height: 100%;
   min-height: 100vh;
-  padding: 24px 16px 40px;
+  padding: 10px 10px 18px;
   overflow-y: auto;
-  background: linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
+  background: #f8fafc;
 }
 
 .routes-v2__shell {
-  max-width: 1080px;
+  max-width: 760px;
   margin: 0 auto;
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .routes-v2__header,
@@ -3082,9 +3063,9 @@ select {
 .routes-v2__empty,
 .routes-v2__route-card {
   border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 20px 40px -30px rgba(15, 23, 42, 0.38);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: none;
 }
 
 .routes-v2__header,
@@ -3092,7 +3073,7 @@ select {
 .routes-v2__loading,
 .routes-v2__empty,
 .routes-v2__route-card {
-  padding: 18px;
+  padding: 10px;
 }
 
 .routes-v2__header,
@@ -3102,7 +3083,7 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -3120,7 +3101,7 @@ select {
 
 .routes-v2__editor {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .routes-v2__editor-meta,
@@ -3137,12 +3118,12 @@ select {
 .routes-v2__solid-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 28px;
+  padding: 0 8px;
   border-radius: 999px;
   background: #eff6ff;
   color: #1d4ed8;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
@@ -3167,8 +3148,8 @@ select {
 
 .routes-v2__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
 }
 
 .routes-v2__field {
@@ -3182,7 +3163,7 @@ select {
 
 .routes-v2__field > span {
   color: #334155;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 700;
 }
 
@@ -3191,8 +3172,8 @@ select {
 }
 
 .routes-v2__type-chip {
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 30px;
+  padding: 0 10px;
   border: 1px solid #cbd5e1;
   border-radius: 999px;
   background: #fff;
@@ -3211,7 +3192,7 @@ select {
 .routes-v2__stops,
 .routes-v2__list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .routes-v2__toggle {
@@ -3224,10 +3205,10 @@ select {
 
 .routes-v2__stop-card {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #f8fafc;
 }
 

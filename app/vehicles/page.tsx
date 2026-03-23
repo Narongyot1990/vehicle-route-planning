@@ -6,11 +6,9 @@ import type { Vehicle } from "@/lib/types";
 import { TRUCK_TYPE_OPTIONS } from "@/lib/truckTypes";
 import { ModalShell } from "@/components/ui/ModalShell";
 import { Icon } from "@/components/ui/Icon";
-import TruckIcon from "@/assets/icons/TruckIcon.svg?url";
 import PlusIcon from "@/assets/icons/PlusIcon.svg?url";
 import EditIcon from "@/assets/icons/EditIcon.svg?url";
 import DeleteIcon from "@/assets/icons/DeleteIcon.svg?url";
-import ArrowLeftIcon from "@/assets/icons/ArrowLeftIcon.svg?url";
 import XIcon from "@/assets/icons/XIcon.svg?url";
 
 const BRANCH_OPTIONS = ["KSN", "CHO", "AYA", "BBT", "RA2"] as const;
@@ -142,17 +140,16 @@ export default function VehiclesPage() {
   };
 
   return (
-    <div style={{ padding: "2rem", height: "100%", overflowY: "auto", background: "#f8fafc" }}>
+    <div style={{ padding: "1rem", height: "100%", overflowY: "auto", background: "#f8fafc" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "2rem" }}>
-          <button onClick={() => router.push("/")} style={iconBtnStyle("#374151")}>
-            <Icon src={ArrowLeftIcon} width={18} height={18} />
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <button onClick={() => router.push("/")} style={secondaryBtnStyle}>
+            Back
           </button>
           <div style={{ display: "flex", alignItems: "flex-end", gap: "1rem", flex: 1, justifyContent: "space-between" }}>
             <div>
-              <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Icon src={TruckIcon} width={28} height={28} style={{ color: "#2563eb" }} />
+              <h1 style={{ fontSize: "1.3rem", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
                 รถบรรทุก
                 <span style={{ fontWeight: 400, color: "#64748b", fontSize: "1rem" }}>({filteredVehicles.length} คัน)</span>
               </h1>

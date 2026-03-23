@@ -272,13 +272,8 @@ export default function CreateJobOrderPageImpl() {
               <span>Back</span>
             </button>
             <div className="job-create-v2__title">
-              <span className="job-create-v2__eyebrow">New job</span>
-              <h1>{mode === "bulk" ? "Quick Multi Create" : "Create Job Order"}</h1>
+              <h1>{mode === "bulk" ? "Quick Jobs" : "New Job"}</h1>
             </div>
-          </div>
-          <div className="job-create-v2__jobno">
-            <span>Job No</span>
-            <strong>{mode === "bulk" ? "Auto" : jobNumber}</strong>
           </div>
         </header>
 
@@ -324,11 +319,6 @@ export default function CreateJobOrderPageImpl() {
                     Single
                   </button>
                 </div>
-                <p className="job-create-v2__mini-note">
-                  {mode === "bulk"
-                    ? "Choose date and time once, then pick multiple routes."
-                    : "Use single mode when you need one route with trailer details."}
-                </p>
               </section>
 
               <section className="job-create-v2__card">
@@ -336,25 +326,13 @@ export default function CreateJobOrderPageImpl() {
                   <span>02</span>
                   <h2>Customer</h2>
                 </div>
-                <div className="job-create-v2__grid">
-                  <label className="job-create-v2__field">
-                    <span>Customer *</span>
-                    <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                      <option value="">Select customer</option>
-                      {customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                    </select>
-                  </label>
-                  <div className="job-create-v2__info">
-                    <span className="job-create-v2__eyebrow">Details</span>
-                    {customer ? (
-                      <div className="job-create-v2__stack">
-                        <div><strong>Contact</strong><span>{customer.contactName || "-"}</span></div>
-                        <div><strong>Phone</strong><span>{customer.phone || "-"}</span></div>
-                        <div><strong>Address</strong><span>{customer.address || "-"}</span></div>
-                      </div>
-                    ) : <p>Select customer</p>}
-                  </div>
-                </div>
+                <label className="job-create-v2__field">
+                  <span>Customer *</span>
+                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                    <option value="">Select customer</option>
+                    {customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                </label>
               </section>
 
               <section className="job-create-v2__card">
@@ -388,7 +366,7 @@ export default function CreateJobOrderPageImpl() {
                       <input type="checkbox" checked={includeReturnTrip} onChange={(e) => setIncludeReturnTrip(e.target.checked)} />
                       <strong>Return trip</strong>
                     </div>
-                    <p>Applied only to routes that support return.</p>
+                    <p>If available</p>
                   </label>
                   <label className="job-create-v2__option">
                     <div>
@@ -406,13 +384,13 @@ export default function CreateJobOrderPageImpl() {
                     {mode === "single" && trailerEnabled && requireTrailer ? (
                       <input value={trailerPlate} onChange={(e) => setTrailerPlate(e.target.value)} placeholder="Optional trailer plate" />
                     ) : (
-                      <p>{mode === "bulk" ? "Single mode only" : trailerEnabled ? "Optional" : "Unavailable"}</p>
+                      <p>{mode === "bulk" ? "Single only" : trailerEnabled ? "Optional" : "Unavailable"}</p>
                     )}
                   </label>
                 </div>
                 <label className="job-create-v2__field">
                   <span>Notes</span>
-                  <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
                 </label>
               </section>
 

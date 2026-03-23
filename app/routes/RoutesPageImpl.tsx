@@ -236,12 +236,11 @@ function RoutesPageInner() {
               <span>Back</span>
             </button>
             <div>
-              <span className="routes-v2__eyebrow">Routes</span>
               <h1>{filterCustomerId ? getCustomerName(filterCustomerId) : "Route Library"}</h1>
             </div>
           </div>
           <button type="button" className="routes-v2__primary-button" onClick={openCreate}>
-            <span>New Route</span>
+            <span>New</span>
           </button>
         </header>
 
@@ -251,8 +250,7 @@ function RoutesPageInner() {
           <section className="routes-v2__editor">
             <div className="routes-v2__editor-head">
               <div>
-                <span className="routes-v2__eyebrow">{editingRouteId ? "Edit" : "Create"}</span>
-                <h2>{editingRouteId ? "Update Route" : "New Route"}</h2>
+                <h2>{editingRouteId ? "Edit Route" : "New Route"}</h2>
               </div>
               <div className="routes-v2__editor-meta">
                 <span>{stops.length} stops</span>
@@ -344,7 +342,7 @@ function RoutesPageInner() {
                   <div className="routes-v2__grid">
                     <label className="routes-v2__field">
                       <span>Label *</span>
-                      <input value={stop.label} onChange={(event) => updateStop(index, "label", event.target.value)} placeholder="Label" />
+                      <input value={stop.label} onChange={(event) => updateStop(index, "label", event.target.value)} placeholder="Name" />
                     </label>
                     <label className="routes-v2__field">
                       <span>Address *</span>
@@ -367,7 +365,7 @@ function RoutesPageInner() {
             </div>
 
             <div className="routes-v2__editor-footer">
-              {saveError ? <div className="routes-v2__error">{saveError}</div> : <div className="routes-v2__footer-note">Minimal route setup. Keep name, stops, and timings only.</div>}
+              {saveError ? <div className="routes-v2__error">{saveError}</div> : null}
               <div className="routes-v2__footer-actions">
                 <button type="button" className="routes-v2__ghost-button" onClick={resetEditor}>
                   Cancel
@@ -384,9 +382,9 @@ function RoutesPageInner() {
           <div className="routes-v2__loading">Loading routes...</div>
         ) : routes.length === 0 ? (
           <div className="routes-v2__empty">
-            <span>No routes yet</span>
+            <span>No routes</span>
             <button type="button" className="routes-v2__text-button" onClick={openCreate}>
-              Create first route
+              Create
             </button>
           </div>
         ) : (

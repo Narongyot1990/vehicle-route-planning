@@ -76,8 +76,7 @@ export default function CreateCustomerPageImpl() {
               <span>Back</span>
             </button>
             <div>
-              <span className="entity-create__eyebrow">Customer</span>
-              <h1>Create Customer</h1>
+              <h1>New Customer</h1>
             </div>
           </div>
         </header>
@@ -98,12 +97,12 @@ export default function CreateCustomerPageImpl() {
             </label>
             <label className="entity-create__field entity-create__field--wide">
               <span>Address</span>
-              <textarea rows={4} value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Address" />
+              <textarea rows={3} value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Address" />
             </label>
           </div>
 
           <div className="entity-create__footer">
-            {error ? <div className="entity-create__error">{error}</div> : <div className="entity-create__hint">Minimal customer profile. You can enrich details later.</div>}
+            {error ? <div className="entity-create__error">{error}</div> : null}
             <div className="entity-create__actions">
               <button type="button" className="entity-create__ghost" onClick={() => router.push("/customers")}>
                 Cancel
