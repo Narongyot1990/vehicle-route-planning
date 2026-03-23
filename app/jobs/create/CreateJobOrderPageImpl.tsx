@@ -7,9 +7,14 @@ import { TRUCK_TYPE_OPTIONS } from "@/lib/truckTypes";
 
 const TRAILER_TYPES = new Set(["6W", "10W", "Prime Mover"]);
 
-function createJobNumber() {
-  const now = new Date();
-  return `JO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+type CreateMode = "bulk" | "single";
+
+function createJobNumber(seed = Date.now()) {
+  const now = new Date(seed);
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `JO-${y}${m}${d}-${String(seed).slice(-5)}`;
 }
 
 function fmtHours(hours: number) {
@@ -30,16 +35,20 @@ function endTime(start: string, hours: number) {
 
 export default function CreateJobOrderPageImpl() {
   const router = useRouter();
+  const [mode, setMode] = useState<CreateMode>("bulk");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [routesLoading, setRoutesLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [createdCount, setCreatedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState("");
   const [truckType, setTruckType] = useState("");
   const [routeId, setRouteId] = useState("");
+  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([]);
+  const [routeSearch, setRouteSearch] = useState("");
   const [includeReturnTrip, setIncludeReturnTrip] = useState(false);
   const [plannedDate, setPlannedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [plannedTime, setPlannedTime] = useState("08:00");
@@ -63,6 +72,8 @@ export default function CreateJobOrderPageImpl() {
   useEffect(() => {
     setRouteId("");
     setTruckType("");
+    setSelectedRouteIds([]);
+    setRouteSearch("");
     setIncludeReturnTrip(false);
     setRequireTrailer(false);
     setTrailerPlate("");
@@ -83,6 +94,8 @@ export default function CreateJobOrderPageImpl() {
 
   useEffect(() => {
     setRouteId("");
+    setSelectedRouteIds([]);
+    setRouteSearch("");
     setIncludeReturnTrip(false);
   }, [truckType]);
 
@@ -99,50 +112,99 @@ export default function CreateJobOrderPageImpl() {
     return fromRoutes.length ? TRUCK_TYPE_OPTIONS.filter((item) => fromRoutes.includes(item)) : TRUCK_TYPE_OPTIONS;
   }, [routes]);
   const filteredRoutes = useMemo(() => {
-    if (!truckType) return [];
+    const query = routeSearch.trim().toLowerCase();
     return routes.filter((route) => {
       const types = route.requiredVehicleTypes ?? [];
-      return !types.length || types.includes(truckType);
+      const truckPass = !truckType || !types.length || types.includes(truckType);
+      const queryPass = !query || route.name.toLowerCase().includes(query);
+      return truckPass && queryPass;
     });
-  }, [routes, truckType]);
-  const route = filteredRoutes.find((item) => item.id === routeId);
+  }, [routeSearch, routes, truckType]);
+  const route = filteredRoutes.find((item) => item.id === routeId) ?? routes.find((item) => item.id === routeId);
+  const selectedRoutes = useMemo(() => routes.filter((item) => selectedRouteIds.includes(item.id)), [routes, selectedRouteIds]);
+  const selectedRouteCount = selectedRoutes.length;
   const returnHours = includeReturnTrip && route?.returnInfo?.enabled ? (route.returnInfo.dwellHours ?? 0) + (route.returnInfo.transitHours ?? 0) : 0;
   const totalHours = route ? route.totalDurationHours + returnHours : 0;
+  const bulkMaxHours = useMemo(() => {
+    if (!selectedRoutes.length) return 0;
+    return Math.max(
+      ...selectedRoutes.map((item) => item.totalDurationHours + (
+        includeReturnTrip && item.returnInfo?.enabled
+          ? (item.returnInfo.dwellHours ?? 0) + (item.returnInfo.transitHours ?? 0)
+          : 0
+      ))
+    );
+  }, [includeReturnTrip, selectedRoutes]);
   const trailerEnabled = TRAILER_TYPES.has(truckType);
-  const canSubmit = Boolean(customerId && truckType && routeId && plannedDate);
+  const canSubmitSingle = Boolean(customerId && truckType && routeId && plannedDate);
+  const canSubmitBulk = Boolean(customerId && truckType && selectedRouteCount > 0 && plannedDate);
+  const canSubmit = mode === "bulk" ? canSubmitBulk : canSubmitSingle;
   const checklist = [
     { label: "Customer", done: Boolean(customer), value: customer?.name ?? "Choose customer" },
     { label: "Truck", done: Boolean(truckType), value: truckType || "Choose truck type" },
-    { label: "Route", done: Boolean(route), value: route?.name ?? "Choose route" },
+    {
+      label: mode === "bulk" ? "Routes" : "Route",
+      done: mode === "bulk" ? selectedRouteCount > 0 : Boolean(route),
+      value: mode === "bulk" ? `${selectedRouteCount} selected` : route?.name ?? "Choose route",
+    },
     { label: "Start", done: Boolean(plannedDate), value: plannedDate ? `${plannedDate} ${plannedTime}` : "Choose date" },
   ];
   const progress = Math.round((checklist.filter((item) => item.done).length / checklist.length) * 100);
 
-  const handleSubmit = useCallback(async (event: React.FormEvent) => {
+  const toggleRouteSelection = useCallback((nextRouteId: string) => {
+    setSelectedRouteIds((current) =>
+      current.includes(nextRouteId) ? current.filter((item) => item !== nextRouteId) : [...current, nextRouteId]
+    );
+  }, []);
+
+  const selectAllVisibleRoutes = useCallback(() => {
+    setSelectedRouteIds((current) => {
+      const merged = new Set(current);
+      for (const item of filteredRoutes) merged.add(item.id);
+      return Array.from(merged);
+    });
+  }, [filteredRoutes]);
+
+  const clearSelectedRoutes = useCallback(() => {
+    setSelectedRouteIds([]);
+  }, []);
+
+  const createJobPayload = useCallback(
+    (selectedRoute: Route, seed: number, isSingle: boolean) => ({
+      jobNumber: isSingle ? jobNumber : createJobNumber(seed),
+      customerId,
+      routeId: selectedRoute.id,
+      includeReturnTrip: Boolean(includeReturnTrip && selectedRoute.returnInfo?.enabled),
+      plannedStartDate: plannedDate,
+      plannedStartTime: plannedTime,
+      requireTrailer: isSingle && requireTrailer ? true : undefined,
+      trailerPlate: isSingle && requireTrailer && trailerPlate ? trailerPlate : undefined,
+      notes: notes || undefined,
+    }),
+    [customerId, includeReturnTrip, jobNumber, notes, plannedDate, plannedTime, requireTrailer, trailerPlate]
+  );
+
+  const postJobOrder = useCallback(async (payload: Record<string, unknown>) => {
+    const res = await fetch("/api/joborders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error ?? "Failed to create job order");
+    }
+    return res.json();
+  }, []);
+
+  const handleSingleSubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!canSubmit) return setError("Please complete customer, truck type, route, and start date");
+    if (!canSubmitSingle || !route) return setError("Please complete customer, truck type, route, and start date");
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/joborders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobNumber,
-          customerId,
-          routeId,
-          includeReturnTrip,
-          plannedStartDate: plannedDate,
-          plannedStartTime: plannedTime,
-          requireTrailer: requireTrailer || undefined,
-          trailerPlate: trailerPlate || undefined,
-          notes: notes || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Failed to create job order");
-      }
+      await postJobOrder(createJobPayload(route, Date.now(), true));
+      setCreatedCount(1);
       setSuccess(true);
       setTimeout(() => router.push("/jobs"), 1200);
     } catch (err) {
@@ -150,7 +212,42 @@ export default function CreateJobOrderPageImpl() {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, customerId, includeReturnTrip, jobNumber, notes, plannedDate, plannedTime, requireTrailer, routeId, router, trailerPlate]);
+  }, [canSubmitSingle, createJobPayload, postJobOrder, route, router]);
+
+  const handleBulkSubmit = useCallback(async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!canSubmitBulk) return setError("Please choose customer, truck type, date, time, and at least one route");
+    setSubmitting(true);
+    setError(null);
+    const failedRouteIds: string[] = [];
+    let successCount = 0;
+    const baseSeed = Date.now();
+
+    try {
+      for (let index = 0; index < selectedRoutes.length; index += 1) {
+        const selectedRoute = selectedRoutes[index];
+        try {
+          await postJobOrder(createJobPayload(selectedRoute, baseSeed + index, false));
+          successCount += 1;
+        } catch {
+          failedRouteIds.push(selectedRoute.id);
+        }
+      }
+
+      if (!failedRouteIds.length) {
+        setCreatedCount(successCount);
+        setSuccess(true);
+        setTimeout(() => router.push("/jobs"), 1400);
+        return;
+      }
+
+      const failedNames = selectedRoutes.filter((item) => failedRouteIds.includes(item.id)).map((item) => item.name);
+      setSelectedRouteIds(failedRouteIds);
+      setError(`Created ${successCount} jobs. Failed ${failedRouteIds.length}: ${failedNames.slice(0, 4).join(", ")}${failedNames.length > 4 ? "..." : ""}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [canSubmitBulk, createJobPayload, postJobOrder, router, selectedRoutes]);
 
   if (success) {
     return (
@@ -159,7 +256,7 @@ export default function CreateJobOrderPageImpl() {
           <div className="job-create-v2__success-badge">
             <span>OK</span>
           </div>
-          <h1>Job order created</h1>
+          <h1>{createdCount > 1 ? `${createdCount} job orders created` : "Job order created"}</h1>
           <p>Returning to Jobs...</p>
         </div>
       </div>
@@ -176,19 +273,19 @@ export default function CreateJobOrderPageImpl() {
             </button>
             <div className="job-create-v2__title">
               <span className="job-create-v2__eyebrow">New job</span>
-              <h1>Create Job Order</h1>
+              <h1>{mode === "bulk" ? "Quick Multi Create" : "Create Job Order"}</h1>
             </div>
           </div>
           <div className="job-create-v2__jobno">
             <span>Job No</span>
-            <strong>{jobNumber}</strong>
+            <strong>{mode === "bulk" ? "Auto" : jobNumber}</strong>
           </div>
         </header>
 
         {loading ? (
           <div className="job-create-v2__loading">Loading customers...</div>
         ) : (
-          <form className="job-create-v2__layout" onSubmit={handleSubmit}>
+          <form className="job-create-v2__layout" onSubmit={mode === "bulk" ? handleBulkSubmit : handleSingleSubmit}>
             <div className="job-create-v2__top-strip">
               <div className="job-create-v2__status-strip">
                 {checklist.map((item) => (
@@ -200,12 +297,12 @@ export default function CreateJobOrderPageImpl() {
               </div>
               <div className="job-create-v2__top-meta">
                 <div className="job-create-v2__top-meta-item">
-                  <span>ETA</span>
-                  <strong>{route ? endTime(plannedTime, totalHours) : "--:--"}</strong>
+                  <span>{mode === "bulk" ? "Selected" : "ETA"}</span>
+                  <strong>{mode === "bulk" ? `${selectedRouteCount} routes` : route ? endTime(plannedTime, totalHours) : "--:--"}</strong>
                 </div>
                 <div className="job-create-v2__top-meta-item">
-                  <span>Duration</span>
-                  <strong>{route ? fmtHours(totalHours) : "-"}</strong>
+                  <span>{mode === "bulk" ? "Longest" : "Duration"}</span>
+                  <strong>{mode === "bulk" ? (selectedRouteCount ? fmtHours(bulkMaxHours) : "-") : route ? fmtHours(totalHours) : "-"}</strong>
                 </div>
                 <div className="job-create-v2__top-meta-item job-create-v2__top-meta-item--accent">
                   <strong>{progress}%</strong>
@@ -217,6 +314,26 @@ export default function CreateJobOrderPageImpl() {
               <section className="job-create-v2__card">
                 <div className="job-create-v2__section-head job-create-v2__section-head--compact">
                   <span>01</span>
+                  <h2>Mode</h2>
+                </div>
+                <div className="job-create-v2__mode-switch">
+                  <button type="button" className={`job-create-v2__mode-button${mode === "bulk" ? " is-active" : ""}`} onClick={() => setMode("bulk")}>
+                    Quick Multi
+                  </button>
+                  <button type="button" className={`job-create-v2__mode-button${mode === "single" ? " is-active" : ""}`} onClick={() => setMode("single")}>
+                    Single
+                  </button>
+                </div>
+                <p className="job-create-v2__mini-note">
+                  {mode === "bulk"
+                    ? "Choose date and time once, then pick multiple routes."
+                    : "Use single mode when you need one route with trailer details."}
+                </p>
+              </section>
+
+              <section className="job-create-v2__card">
+                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
+                  <span>02</span>
                   <h2>Customer</h2>
                 </div>
                 <div className="job-create-v2__grid">
@@ -242,8 +359,8 @@ export default function CreateJobOrderPageImpl() {
 
               <section className="job-create-v2__card">
                 <div className="job-create-v2__section-head job-create-v2__section-head--compact">
-                  <span>02</span>
-                  <h2>Route</h2>
+                  <span>03</span>
+                  <h2>Plan</h2>
                 </div>
                 <label className="job-create-v2__field">
                   <span>Truck type *</span>
@@ -257,34 +374,124 @@ export default function CreateJobOrderPageImpl() {
                 </label>
                 <div className="job-create-v2__grid">
                   <label className="job-create-v2__field">
-                    <span>Route *</span>
-                    <select value={routeId} onChange={(e) => setRouteId(e.target.value)} disabled={!customerId || !truckType}>
-                      <option value="">{routesLoading ? "Loading routes..." : truckType ? "Select route" : "Choose truck type first"}</option>
-                      {filteredRoutes.map((item) => <option key={item.id} value={item.id}>{item.name} ({fmtHours(item.totalDurationHours)})</option>)}
-                    </select>
-                    {customerId && truckType && !filteredRoutes.length && !routesLoading ? <small className="warning">No routes found for {truckType}</small> : null}
+                    <span>Start date *</span>
+                    <input type="date" value={plannedDate} onChange={(e) => setPlannedDate(e.target.value)} />
                   </label>
-                  <div className="job-create-v2__info">
-                    <span className="job-create-v2__eyebrow">Snapshot</span>
-                    {route ? (
-                      <>
-                        <div className="job-create-v2__pills">
-                          <span>{route.stops.length} stops</span>
-                          <span>{fmtHours(route.totalDurationHours)}</span>
-                          <span>{(route.requiredVehicleTypes ?? []).join(", ") || "Any truck"}</span>
-                        </div>
-                      </>
-                    ) : <p>Select route</p>}
-                  </div>
+                  <label className="job-create-v2__field">
+                    <span>Start time</span>
+                    <input type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} />
+                  </label>
                 </div>
-                {route ? (
+                <div className="job-create-v2__option-grid">
+                  <label className="job-create-v2__option">
+                    <div>
+                      <input type="checkbox" checked={includeReturnTrip} onChange={(e) => setIncludeReturnTrip(e.target.checked)} />
+                      <strong>Return trip</strong>
+                    </div>
+                    <p>Applied only to routes that support return.</p>
+                  </label>
+                  <label className="job-create-v2__option">
+                    <div>
+                      <input
+                        type="checkbox"
+                        checked={requireTrailer}
+                        disabled={mode === "bulk" || !trailerEnabled}
+                        onChange={(e) => {
+                          setRequireTrailer(e.target.checked);
+                          if (!e.target.checked) setTrailerPlate("");
+                        }}
+                      />
+                      <strong>Trailer</strong>
+                    </div>
+                    {mode === "single" && trailerEnabled && requireTrailer ? (
+                      <input value={trailerPlate} onChange={(e) => setTrailerPlate(e.target.value)} placeholder="Optional trailer plate" />
+                    ) : (
+                      <p>{mode === "bulk" ? "Single mode only" : trailerEnabled ? "Optional" : "Unavailable"}</p>
+                    )}
+                  </label>
+                </div>
+                <label className="job-create-v2__field">
+                  <span>Notes</span>
+                  <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+                </label>
+              </section>
+
+              <section className="job-create-v2__card">
+                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
+                  <span>04</span>
+                  <h2>{mode === "bulk" ? "Routes" : "Route"}</h2>
+                </div>
+                <div className="job-create-v2__route-toolbar">
+                  <label className="job-create-v2__field">
+                    <span>{mode === "bulk" ? "Find route" : "Route *"}</span>
+                    {mode === "bulk" ? (
+                      <input
+                        value={routeSearch}
+                        onChange={(e) => setRouteSearch(e.target.value)}
+                        placeholder={truckType ? "Search route name" : "Choose truck type first"}
+                        disabled={!customerId || !truckType}
+                      />
+                    ) : (
+                      <select value={routeId} onChange={(e) => setRouteId(e.target.value)} disabled={!customerId || !truckType}>
+                        <option value="">{routesLoading ? "Loading routes..." : truckType ? "Select route" : "Choose truck type first"}</option>
+                        {filteredRoutes.map((item) => <option key={item.id} value={item.id}>{item.name} ({fmtHours(item.totalDurationHours)})</option>)}
+                      </select>
+                    )}
+                  </label>
+                  {mode === "bulk" ? (
+                    <div className="job-create-v2__route-actions">
+                      <button type="button" className="job-create-v2__secondary" onClick={selectAllVisibleRoutes} disabled={!filteredRoutes.length}>
+                        Select all
+                      </button>
+                      <button type="button" className="job-create-v2__secondary" onClick={clearSelectedRoutes} disabled={!selectedRouteCount}>
+                        Clear
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {customerId && truckType && !filteredRoutes.length && !routesLoading ? <small className="warning">No routes found for {truckType}</small> : null}
+
+                {mode === "bulk" ? (
+                  <>
+                    <div className="job-create-v2__selection-summary">
+                      <span>{selectedRouteCount} selected</span>
+                      <span>{filteredRoutes.length} visible</span>
+                      <span>{includeReturnTrip ? "Return on" : "One-way"}</span>
+                    </div>
+                    <div className="job-create-v2__route-picker">
+                      {filteredRoutes.map((item) => {
+                        const selected = selectedRouteIds.includes(item.id);
+                        const routeTotalHours = item.totalDurationHours + (includeReturnTrip && item.returnInfo?.enabled ? (item.returnInfo.dwellHours ?? 0) + (item.returnInfo.transitHours ?? 0) : 0);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`job-create-v2__route-choice${selected ? " is-selected" : ""}`}
+                            onClick={() => toggleRouteSelection(item.id)}
+                          >
+                            <div className="job-create-v2__route-choice-head">
+                              <strong>{item.name}</strong>
+                              <span>{selected ? "Selected" : "Pick"}</span>
+                            </div>
+                            <div className="job-create-v2__pills">
+                              <span>{item.stops.length} stops</span>
+                              <span>{fmtHours(routeTotalHours)}</span>
+                              {item.returnInfo?.enabled ? <span>Return</span> : null}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : route ? (
                   <div className="job-create-v2__preview">
                     <div className="job-create-v2__preview-head">
                       <div>
                         <span className="job-create-v2__eyebrow">Stops</span>
                         <strong>{route.name}</strong>
                       </div>
-                      <span>Base {fmtHours(route.totalDurationHours)}</span>
+                      <span>{fmtHours(totalHours)}</span>
                     </div>
                     <div className="job-create-v2__stop-grid">
                       {route.stops.map((item, index) => (
@@ -298,52 +505,15 @@ export default function CreateJobOrderPageImpl() {
                       ))}
                     </div>
                   </div>
-                ) : null}
-                <div className="job-create-v2__option-grid">
-                  <label className="job-create-v2__option">
-                    <div>
-                      <input type="checkbox" checked={includeReturnTrip} disabled={!route?.returnInfo?.enabled} onChange={(e) => setIncludeReturnTrip(e.target.checked)} />
-                      <strong>Return trip</strong>
-                    </div>
-                    <p>{route?.returnInfo?.enabled ? `+ ${fmtHours((route.returnInfo.dwellHours ?? 0) + (route.returnInfo.transitHours ?? 0))}` : "Unavailable"}</p>
-                  </label>
-                  <label className="job-create-v2__option">
-                    <div>
-                      <input type="checkbox" checked={requireTrailer} disabled={!trailerEnabled} onChange={(e) => { setRequireTrailer(e.target.checked); if (!e.target.checked) setTrailerPlate(""); }} />
-                      <strong>Trailer</strong>
-                    </div>
-                    {trailerEnabled && requireTrailer ? (
-                      <input value={trailerPlate} onChange={(e) => setTrailerPlate(e.target.value)} placeholder="Optional trailer plate" />
-                    ) : (
-                      <p>{trailerEnabled ? "Optional" : "Unavailable"}</p>
-                    )}
-                  </label>
-                </div>
-              </section>
-
-              <section className="job-create-v2__card">
-                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
-                  <span>03</span>
-                  <h2>Schedule</h2>
-                </div>
-                <div className="job-create-v2__grid">
-                  <label className="job-create-v2__field">
-                    <span>Start date *</span>
-                    <input type="date" value={plannedDate} onChange={(e) => setPlannedDate(e.target.value)} />
-                  </label>
-                  <label className="job-create-v2__field">
-                    <span>Start time</span>
-                    <input type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} />
-                  </label>
-                </div>
+                ) : (
+                  <div className="job-create-v2__info">
+                    <p>{truckType ? "Select route" : "Choose customer and truck type first"}</p>
+                  </div>
+                )}
                 <div className="job-create-v2__schedule-box">
-                  <div><strong>Estimated duration</strong><span>{route ? fmtHours(totalHours) : "-"}</span></div>
-                  <div><strong>Estimated end</strong><span>{route ? endTime(plannedTime, totalHours) : "-"}</span></div>
+                  <div><strong>{mode === "bulk" ? "Longest duration" : "Estimated duration"}</strong><span>{mode === "bulk" ? (selectedRouteCount ? fmtHours(bulkMaxHours) : "-") : route ? fmtHours(totalHours) : "-"}</span></div>
+                  <div><strong>{mode === "bulk" ? "Latest end" : "Estimated end"}</strong><span>{mode === "bulk" ? (selectedRouteCount ? endTime(plannedTime, bulkMaxHours) : "--:--") : route ? endTime(plannedTime, totalHours) : "--:--"}</span></div>
                 </div>
-                <label className="job-create-v2__field">
-                  <span>Notes</span>
-                  <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-                </label>
               </section>
             </div>
 
@@ -390,22 +560,24 @@ export default function CreateJobOrderPageImpl() {
             <div className="job-create-v2__action-bar">
               <div className="job-create-v2__action-meta">
                 <div className="job-create-v2__action-meta-item">
-                  <span>Route</span>
-                  <strong>{route?.name || "-"}</strong>
+                  <span>{mode === "bulk" ? "Routes" : "Route"}</span>
+                  <strong>{mode === "bulk" ? `${selectedRouteCount} selected` : route?.name || "-"}</strong>
                 </div>
                 <div className="job-create-v2__action-meta-item">
                   <span>Trip</span>
                   <strong>{includeReturnTrip ? "Return" : "One-way"}</strong>
                 </div>
                 <div className="job-create-v2__action-meta-item">
-                  <span>Trailer</span>
-                  <strong>{requireTrailer ? trailerPlate || "Required" : "-"}</strong>
+                  <span>{mode === "bulk" ? "Latest end" : "ETA"}</span>
+                  <strong>{mode === "bulk" ? (selectedRouteCount ? endTime(plannedTime, bulkMaxHours) : "--:--") : route ? endTime(plannedTime, totalHours) : "--:--"}</strong>
                 </div>
               </div>
               <div className="job-create-v2__action-controls">
                 {error ? <div className="job-create-v2__error">{error}</div> : null}
                 <button type="button" className="job-create-v2__secondary" onClick={() => router.push("/jobs")}>Cancel</button>
-                <button type="submit" className="job-create-v2__primary" disabled={!canSubmit || submitting}>{submitting ? "Creating..." : "Create"}</button>
+                <button type="submit" className="job-create-v2__primary" disabled={!canSubmit || submitting}>
+                  {submitting ? "Creating..." : mode === "bulk" ? `Create ${selectedRouteCount || ""} Jobs`.trim() : "Create"}
+                </button>
               </div>
             </div>
           </form>

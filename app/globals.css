@@ -2299,6 +2299,10 @@ select {
   gap: 6px;
 }
 
+.job-create-v2__field--wide {
+  min-width: 0;
+}
+
 .job-create-v2__field > span {
   color: #334155;
   font-size: 0.82rem;
@@ -2342,6 +2346,39 @@ select {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 8px;
+}
+
+.job-create-v2__mode-switch {
+  display: inline-flex;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid #dbe5f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.job-create-v2__mode-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.job-create-v2__mode-button.is-active {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 8px 20px -16px rgba(15, 23, 42, 0.55);
+}
+
+.job-create-v2__mini-note {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
 }
 
 .job-create-v2__truck-grid button {
@@ -2389,6 +2426,79 @@ select {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.job-create-v2__route-toolbar {
+  display: grid;
+  gap: 12px;
+}
+
+.job-create-v2__route-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.job-create-v2__selection-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.job-create-v2__selection-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #dbe5f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.job-create-v2__route-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.job-create-v2__route-choice {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #dbe5f0;
+  border-radius: 16px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.job-create-v2__route-choice.is-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.job-create-v2__route-choice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.job-create-v2__route-choice-head span {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .job-create-v2__stop-card {
