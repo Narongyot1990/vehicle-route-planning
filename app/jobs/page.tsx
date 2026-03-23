@@ -123,7 +123,7 @@ export default function JobsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", textAlign: "left" }}>
-                  {["เลขที่", "ลูกค้า", "เส้นทาง", "วันที่", "เวลา", "รถ", "คนขับ", "สถานะ", ""].map((h) => (
+                  {["เลขที่", "ลูกค้า", "เส้นทาง", "วันที่", "เวลา", "รถ", "คนขับ", "ตู้", "สถานะ", ""].map((h) => (
                     <th key={h} style={{ padding: "0.85rem 1rem", fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -152,6 +152,18 @@ export default function JobsPage() {
                   </td>
                   <td style={{ padding: "0.85rem 1rem", whiteSpace: "nowrap", color: "#475569" }}>
                     {o.driverName ?? <span style={{ color: "#cbd5e1" }}>—</span>}
+                  </td>
+                  <td style={{ padding: "0.85rem 1rem", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                    {(o.trailerPlate || o.requireTrailer) ? (
+                      <span 
+                        title={o.trailerPlate ? `ตู้: ${o.trailerPlate}` : "รอพ่วงตู้"}
+                        style={{ background: o.trailerPlate ? "#fef3c7" : "#fee2e2", color: o.trailerPlate ? "#b45309" : "#b91c1c", padding: "0.15rem 0.4rem", borderRadius: 4, fontSize: "0.75rem", fontWeight: 800, cursor: "help" }}
+                      >
+                        {o.trailerPlate ? "FT" : "C"}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#cbd5e1" }}>—</span>
+                    )}
                   </td>
                   <td style={{ padding: "0.85rem 1rem" }}>
                     <Badge value={o.status} map={STATUS_BADGE} />

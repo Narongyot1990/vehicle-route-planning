@@ -10,7 +10,8 @@ export const TOOLBOX_TEMPLATES: JobItem[] = [
     note: "Preventive maintenance block",
     segments: [
       { id: "pm", label: "PM", durationHours: 4, color: "#4d7c0f" }
-    ]
+    ],
+    requiredVehicleTypes: []
   },
   {
     id: "tool-no-driver",
@@ -19,7 +20,8 @@ export const TOOLBOX_TEMPLATES: JobItem[] = [
     note: "Vehicle unavailable due to driver gap",
     segments: [
       { id: "no-driver", label: "No driver", durationHours: 8, color: "#9a3412" }
-    ]
+    ],
+    requiredVehicleTypes: []
   },
   {
     id: "tool-no-job",
@@ -28,6 +30,7 @@ export const TOOLBOX_TEMPLATES: JobItem[] = [
     note: "Idle vehicle placeholder",
     segments: [
       { id: "no-job", label: "No job", durationHours: 6, color: "#475569" }
-    ]
+    ],
+    requiredVehicleTypes: []
   }
 ];

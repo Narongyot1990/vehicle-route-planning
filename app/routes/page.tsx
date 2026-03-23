@@ -387,11 +387,14 @@ function RoutesPageInner() {
                 ) : null}
                 {/* Stop chips */}
                 <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
-                  {r.stops.map((s, i) => (
-                    <span key={i} style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 20, background: getStopColor(i) + "22", color: getStopColor(i), fontWeight: 600, border: `1px solid ${getStopColor(i)}55` }}>
-                      {i + 1}. {s.label}
-                    </span>
-                  ))}
+                  {r.stops.map((s, i) => {
+                    const color = getStopColor(s.label, i);
+                    return (
+                      <span key={i} style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 20, background: color + "22", color, fontWeight: 600, border: `1px solid ${color}55` }}>
+                        {i + 1}. {s.label}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginLeft: "0.5rem" }}>
@@ -427,7 +430,7 @@ function StopRow({ index, stop, updateStop, removeStop }: {
   return (
     <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.75rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: getStopColor(index) }}>จุดที่ {index + 1}</span>
+        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: getStopColor("", index) }}>จุดที่ {index + 1}</span>
         {removeStop && (
           <button type="button" onClick={removeStop} style={{ color: "#dc2626", background: "none", border: "none", cursor: "pointer", fontSize: "0.75rem" }}>ลบ</button>
         )}

@@ -32,6 +32,8 @@ export default function CreateJobOrderPage() {
   const [includeReturnTrip, setIncludeReturnTrip] = useState(false);
   const [plannedDate, setPlannedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [plannedTime, setPlannedTime] = useState("08:00");
+  const [requireTrailer, setRequireTrailer] = useState(false);
+  const [trailerPlate, setTrailerPlate] = useState("");
 
   const [notes, setNotes] = useState("");
   const [jobNumber, setJobNumber] = useState("");
@@ -119,6 +121,8 @@ export default function CreateJobOrderPage() {
           includeReturnTrip,
           plannedStartDate: plannedDate,
           plannedStartTime: plannedTime,
+          requireTrailer: requireTrailer || undefined,
+          trailerPlate: trailerPlate || undefined,
           notes: notes || undefined,
         }),
       });
@@ -133,7 +137,7 @@ export default function CreateJobOrderPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [customerId, truckType, routeId, includeReturnTrip, plannedDate, plannedTime, notes, jobNumber, router]);
+  }, [customerId, truckType, routeId, includeReturnTrip, plannedDate, plannedTime, requireTrailer, trailerPlate, notes, jobNumber, router]);
 
   if (success) {
     return (
@@ -243,6 +247,34 @@ export default function CreateJobOrderPage() {
                 </div>
               </div>
             ) : null}
+
+            {/* Trailer selection - for 6W, 10W, Prime Mover */}
+            {["6W", "10W", "Prime Mover"].includes(truckType) && (
+              <div style={{ marginTop: "0.85rem", padding: "0.75rem", border: "1px solid #e5e7eb", background: "#f9fafb", borderRadius: 8 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.85rem", fontWeight: 700, color: "#374151" }}>
+                  <input
+                    type="checkbox"
+                    checked={requireTrailer}
+                    onChange={(e) => { setRequireTrailer(e.target.checked); if (!e.target.checked) setTrailerPlate(""); }}
+                  />
+                  🚛 ต้องการพ่วงตู้ Trailer
+                </label>
+                {requireTrailer && (
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <input
+                      type="text"
+                      value={trailerPlate}
+                      onChange={(e) => setTrailerPlate(e.target.value)}
+                      placeholder="เช่น T-001"
+                      style={{ ...inputStyle, fontFamily: "monospace" }}
+                    />
+                    <div style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "#6b7280" }}>
+                      ระบุทะเบียนตู้ Trailer ที่ต้องการพ่วง
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           {/* Step 3: Schedule */}
