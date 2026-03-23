@@ -122,6 +122,248 @@ select {
   background: var(--surface);
 }
 
+.save-status-cluster {
+  padding: 0 8px;
+  margin-left: 2px;
+}
+
+.history-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.history-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.history-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.history-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.history-button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.history-main-button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.history-main-button.icon-only {
+  width: 30px;
+  justify-content: center;
+  padding: 0;
+}
+
+.history-menu-toggle {
+  width: 26px;
+  justify-content: center;
+  padding: 0;
+  border-left: 1px solid var(--line);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.history-split.open .history-main-button,
+.history-split.open .history-menu-toggle {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.history-icon-svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.history-caret-svg {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+}
+
+.history-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  width: 220px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.history-menu-heading {
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.history-menu-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.history-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.history-menu-item:hover,
+.history-menu-item:focus-visible,
+.history-menu-item.active {
+  background: #e8f0fe;
+  color: #0f3f9f;
+  outline: none;
+}
+
+.history-menu-item-index {
+  flex: 0 0 18px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.history-menu-item.active .history-menu-item-index {
+  color: inherit;
+}
+
+.history-menu-item-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.history-menu-footer {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  background: #f8fafc;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.save-status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.save-status-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.save-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  opacity: 0.22;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.save-status-dot.yellow {
+  background: var(--warning);
+}
+
+.save-status-dot.green {
+  background: var(--success);
+}
+
+.save-status-dot.red {
+  background: var(--danger);
+}
+
+.save-status-dot.active {
+  opacity: 1;
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.05);
+}
+
+.save-status-inline.saving .save-status-dot.yellow.active {
+  animation: save-status-pulse 0.9s ease-in-out infinite;
+}
+
+.save-status-time {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.save-status-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes save-status-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
 .calendar-controls {
   display: flex;
   align-items: center;

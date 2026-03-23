@@ -176,7 +176,7 @@ export function PaletteJobCardPlannedStartEdit({ state }: { state: PaletteJobCar
 
       <div className="palette-edit-footer">
         <span className="palette-edit-total" style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>
-          Drag to timeline to place
+          Drag to timeline to assign
         </span>
         <div style={{ display: "flex", gap: 6 }}>
           <button type="button" className="palette-edit-cancel" onClick={handleCancelPlannedStart}>
@@ -248,7 +248,7 @@ export function PaletteJobCardNormal({ state }: { state: PaletteJobCardState }) 
             <button
               type="button"
               className="unplace-button"
-              title="Unplace"
+              title={job.branch === "BLOCKS" ? "Remove block" : "Move to Unassigned"}
               onClick={handleUnplaceClick}
             >
               ×

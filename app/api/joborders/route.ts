@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       plannedStartDate: body.plannedStartDate,
       plannedStartTime: body.plannedStartTime || "08:00",
       plannedStart,
+      assignmentStatus: body.assignmentStatus ?? (body.vehiclePlate ? "assigned" : "unassigned"),
       vehiclePlate: body.vehiclePlate,
       driverName: body.driverName,
       trailerPlate: body.trailerPlate,
@@ -126,6 +127,10 @@ export async function PATCH(request: NextRequest) {
       const [hh, min] = body.plannedStartTime.split(":").map(Number);
       const target = new Date(yyyy, mm - 1, dd, hh, min, 0, 0);
       updates.plannedStart = Math.floor((target.getTime() - origin.getTime()) / (1000 * 60 * 60));
+    }
+
+    if (body.vehiclePlate !== undefined && !body.assignmentStatus) {
+      updates.assignmentStatus = body.vehiclePlate ? "assigned" : "unassigned";
     }
 
     const result = await db.collection<JobOrder>("joborders").findOneAndUpdate(

@@ -29,6 +29,7 @@ function makeJobFromTemplate(
     jobNumber,
     status,
     priority,
+    assignmentStatus: vehiclePlate ? "assigned" : "unassigned",
     routeTemplateId: templateId,
     stops: template.stops.map((s) => ({
       ...s,
@@ -68,6 +69,7 @@ function makeDirectJob(
     jobNumber,
     status,
     priority,
+    assignmentStatus: vehiclePlate ? "assigned" : "unassigned",
     directLeadTimeHours: leadHours,
     stops: [],
     requiredVehicleTypes: ["6W"],

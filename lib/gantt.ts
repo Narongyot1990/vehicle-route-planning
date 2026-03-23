@@ -19,6 +19,11 @@ export type JobItem = {
   title: string;
   note: string;
   segments: JobSegment[];
+  trailerPlate?: string;
+  requireTrailer?: boolean;
+  assignedVehiclePlate?: string;
+  assignedVehicleType?: string;
+  requiredVehicleTypes: string[];
 };
 
 export type JobPlacement = {
@@ -166,11 +171,13 @@ const DEFAULT_DIRECT_SEGMENT_COLOR = "#475569";
 const TRANSIT_SEGMENT_COLOR = "#334155";
 
 export function jobToJobItem(job: Job): JobItem {
+  const origin = job.branch === "BLOCKS" ? "tool" : "pool";
+
   // Direct job (no stops): show as a single segment bar
   if (job.directLeadTimeHours !== undefined) {
     return {
       id: job.id,
-      origin: "pool",
+      origin,
       title: job.routeName || job.customerName,
       note: `${job.customerName} — ${job.directLeadTimeHours}h direct`,
       segments: [
@@ -187,16 +194,26 @@ export function jobToJobItem(job: Job): JobItem {
               : DEFAULT_DIRECT_SEGMENT_COLOR,
         },
       ],
+      trailerPlate: job.trailerPlate,
+      requireTrailer: job.requireTrailer,
+      assignedVehiclePlate: job.assignedVehiclePlate,
+      assignedVehicleType: job.assignedVehicleType,
+      requiredVehicleTypes: job.requiredVehicleTypes,
     };
   }
 
   // Template-based job: stops → segments
   return {
     id: job.id,
-    origin: "pool",
+    origin,
     title: job.routeName || _routeSummary(job),
     note: `${job.customerName} | ${_routeSummary(job)}`,
     segments: buildRouteSegments(job),
+    trailerPlate: job.trailerPlate,
+    requireTrailer: job.requireTrailer,
+    assignedVehiclePlate: job.assignedVehiclePlate,
+    assignedVehicleType: job.assignedVehicleType,
+    requiredVehicleTypes: job.requiredVehicleTypes,
   };
 }
 

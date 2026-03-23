@@ -2,6 +2,7 @@
 // Canonical types live in lib/types.ts — re-export for backward compatibility
 export type { JobOrderStatus as JobStatus } from "@/lib/types";
 import type { JobOrderStatus as JobStatus } from "@/lib/types";
+import type { JobOrderAssignmentStatus } from "@/lib/types";
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   draft: "Draft",
@@ -127,9 +128,12 @@ export type Job = {
   // Vehicle requirements
   requiredVehicleTypes: string[];
   trailerPlate?: string;
+  requireTrailer?: boolean;
 
   // Assignment
+  assignmentStatus: JobOrderAssignmentStatus;
   assignedVehiclePlate?: string;
+  assignedVehicleType?: string;
   assignedDriverName?: string;
   plannedStart?: number; // absolute hour index from timeline origin
 

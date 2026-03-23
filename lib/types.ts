@@ -59,6 +59,7 @@ export type JobOrderStatus =
   | "cancelled";
 
 export type JobOrderPriority = "low" | "normal" | "high" | "urgent";
+export type JobOrderAssignmentStatus = "unassigned" | "assigned";
 
 export type JobOrder = {
   id: string;
@@ -78,9 +79,11 @@ export type JobOrder = {
   plannedStartTime: string;  // "HH:mm"
   plannedStart: number;      // absolute hour index from today midnight (computed)
   // Assignment
+  assignmentStatus: JobOrderAssignmentStatus;
   vehiclePlate?: string;
   driverName?: string;
   trailerPlate?: string;
+  requireTrailer?: boolean;
   // Status
   status: JobOrderStatus;
   priority: JobOrderPriority;
@@ -94,5 +97,35 @@ export type JobOrder = {
   updatedAt: string;
 };
 
-// ── Vehicle (existing, imported from mockVehicles) ─────────────────────────────
-// type Vehicle = { licensePlate, vehicleType, engineType, branch }
+export type VehicleBlockType = "pm" | "no_driver" | "no_job";
+export type VehicleBlockStatus = "active" | "removed";
+
+export type VehicleBlock = {
+  id: string;
+  vehiclePlate?: string;
+  blockType: VehicleBlockType;
+  title: string;
+  reason?: string;
+  plannedStartDate: string;
+  plannedStartTime: string;
+  plannedStart: number;
+  durationHours: number;
+  status: VehicleBlockStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ── Vehicle ──────────────────────────────────────────────────────────────────
+export type VehicleType = "6W" | "10W" | "Prime Mover" | "Car carrier" | "4W" | "Van";
+export type Branch = "KSN" | "CHO" | "AYA" | "BBT" | "RA2";
+export type EngineType = "ICE" | "EV";
+
+export type Vehicle = {
+  id: string;
+  licensePlate: string;
+  vehicleType: VehicleType;
+  engineType: EngineType;
+  branch: Branch;
+  createdAt: string;
+  updatedAt: string;
+};

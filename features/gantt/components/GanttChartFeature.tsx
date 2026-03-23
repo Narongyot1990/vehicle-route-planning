@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { TimelineBoard } from "@/features/gantt/components/TimelineBoard";
 import { JobPalette } from "@/features/gantt/components/JobPalette";
 import { GanttMeta } from "@/features/gantt/components/GanttMeta";
@@ -8,15 +8,36 @@ import { ToolboxTray } from "@/features/gantt/components/ToolboxTray";
 import { useGanttChartState } from "@/features/gantt/hooks/useGanttChartState";
 import { useVehicles } from "@/features/gantt/hooks/useVehicles";
 import { useJobs } from "@/features/gantt/hooks/useJobs";
-import type { Vehicle } from "@/features/gantt/data/mockVehicles";
+import { isVehicleBlockJob, useVehicleBlocks } from "@/features/gantt/hooks/useVehicleBlocks";
 import { JobOrderEditModal } from "@/features/gantt/components/JobOrderEditModal";
 
 export function GanttChartFeature() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [modalJobId, setModalJobId] = useState<string | null>(null);
-  const vehicles: Vehicle[] = useVehicles();
-  const { jobs, reload } = useJobs();
-  const state = useGanttChartState(vehicles, jobs);
+  const { vehicles } = useVehicles();
+  const jobsState = useJobs();
+  const blocksState = useVehicleBlocks();
+
+  const handlePlanningItemUpdate = useCallback((updated: (typeof jobsState.jobs)[number]) => {
+    if (isVehicleBlockJob(updated)) {
+      return blocksState.updateBlockJob(updated);
+    }
+    return jobsState.updateJob(updated);
+  }, [blocksState, jobsState]);
+
+  const saveIndicator = useMemo(() => (
+    jobsState.saveIndicator.updatedAtMs >= blocksState.saveIndicator.updatedAtMs
+      ? jobsState.saveIndicator
+      : blocksState.saveIndicator
+  ), [blocksState.saveIndicator, jobsState.saveIndicator]);
+
+  const state = useGanttChartState(
+    vehicles,
+    jobsState.jobs,
+    blocksState.blockJobs,
+    handlePlanningItemUpdate,
+    blocksState.createBlockFromTemplate,
+  );
 
   const handleJobBarClick = (jobId: string) => {
     setModalJobId(jobId);
@@ -25,15 +46,34 @@ export function GanttChartFeature() {
   // Keyboard shortcut: [ to toggle sidebar
   useEffect(() => {
     const handleKey = (e: KeyboardEvent<HTMLElement>) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+
+        if (e.shiftKey) {
+          state.handleRedo();
+        } else {
+          state.handleUndo();
+        }
+        return;
+      }
+
+      if (e.ctrlKey && e.key.toLowerCase() === "y") {
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+        state.handleRedo();
+        return;
+      }
+
       if (e.key === "[" && !e.ctrlKey && !e.metaKey) {
-        const tag = (e.target as HTMLElement).tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         setSidebarOpen(prev => !prev);
       }
     };
     window.addEventListener("keydown", handleKey as any);
     return () => window.removeEventListener("keydown", handleKey as any);
-  }, []);
+  }, [state.handleRedo, state.handleUndo]);
 
   const handleSegmentInputKeyDown = (
     event: KeyboardEvent<HTMLInputElement>,
@@ -61,9 +101,9 @@ export function GanttChartFeature() {
   const handleShellPointerDownCapture = (event: ReactPointerEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     const isJobBar = target.closest("[data-job-id]");
-    const isPlacedCard = target.closest(".palette-card.clickable");
+    const isAssignedCard = target.closest(".palette-card.clickable");
 
-    if (isJobBar || isPlacedCard) {
+    if (isJobBar || isAssignedCard) {
       return;
     }
 
@@ -74,12 +114,22 @@ export function GanttChartFeature() {
     <section className="planner-page" onPointerDownCapture={handleShellPointerDownCapture}>
       <section className="gantt-card" aria-label="Planning workspace">
         <GanttMeta
-          mode={state.mode}
-          onModeChange={state.handleModeChange}
           onGoToToday={state.handleGoToToday}
           onCustomDateNavigate={state.handleCustomDateNavigate}
           hourWidth={state.hourWidth}
           onHourWidthChange={state.setHourWidth}
+          canUndo={state.canUndo}
+          canRedo={state.canRedo}
+          undoLabel={state.undoLabel}
+          redoLabel={state.redoLabel}
+          undoEntries={state.undoEntries}
+          redoEntries={state.redoEntries}
+          historyBusy={state.historyBusy}
+          onUndo={state.handleUndo}
+          onRedo={state.handleRedo}
+          onUndoMany={state.handleUndoMany}
+          onRedoMany={state.handleRedoMany}
+          saveIndicator={saveIndicator}
         />
 
         <div className={`planner-shell${sidebarOpen ? "" : " sidebar-collapsed"}`}>
@@ -118,8 +168,8 @@ export function GanttChartFeature() {
               onSegmentInputChange={state.handleSegmentInputChange}
               onSegmentInputBlur={state.commitSegmentHours}
               onSegmentInputKeyDown={handleSegmentInputKeyDown}
-              onGoToPlacedJobInPalette={state.handleGoToPlacedJobInPalette}
-              onResizeToolInstance={state.handleResizeToolInstance}
+              onGoToPlacedJobInPalette={state.handleGoToAssignedItemInPalette}
+              onResizeToolInstance={state.handleResizeAssignedItem}
               onJobBarClick={handleJobBarClick}
             />
           </section>
@@ -130,8 +180,8 @@ export function GanttChartFeature() {
             paletteView={state.paletteView}
             paletteFocusJobId={state.paletteFocusJobId}
             paletteFocusToken={state.paletteFocusToken}
-            paletteJobs={state.paletteJobs}
-            assignedJobs={state.assignedJobs}
+            unassignedJobs={state.unassignedJobs}
+            assignedItems={state.assignedItems}
             activeDrag={state.activeDrag}
             editingJobId={state.editingJobId}
             editingPlacementJobId={state.editingPlacementJobId}
@@ -146,7 +196,7 @@ export function GanttChartFeature() {
             onJobDragStart={state.handleJobDragStart}
             onDragEnd={state.clearInteractionState}
             onNavigateToJobPlacement={state.handleNavigateToJobPlacement}
-            onUnplaceJob={state.handleUnplaceJob}
+            onUnassignJob={state.handleUnassignJob}
             onEditJob={state.handleEditJob}
             onStartEditJob={(jobId) => setModalJobId(jobId)}
             onCancelEditJob={() => state.setEditingJobId(null)}
@@ -205,7 +255,7 @@ export function GanttChartFeature() {
         <JobOrderEditModal
           jobOrderId={modalJobId}
           onClose={() => setModalJobId(null)}
-          onSaved={reload}
+          onSaved={jobsState.reload}
         />
       )}
     </section>

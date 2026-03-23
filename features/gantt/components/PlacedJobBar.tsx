@@ -56,7 +56,7 @@ export function PlacedJobBar({
 }: PlacedJobBarProps) {
   const durationHours = getDurationHours(job);
   const isDragging = activeDrag?.jobId === job.id;
-  const goToLabel = "Go to list";
+  const goToLabel = "Go to assigned list";
   const pointerDownTimeRef = useRef(0);
   const resizeSessionRef = useRef<{
     pointerId: number;
@@ -199,6 +199,19 @@ export function PlacedJobBar({
       <div className="job-stack-content">
         <div className="job-stack-header">
           <span>{job.title}</span>
+          {job.requiredVehicleTypes[0] && (
+            <span style={{ marginLeft: "0.5rem", fontSize: "0.65rem", background: "#dbeafe", color: "#1d4ed8", padding: "0.1rem 0.4rem", borderRadius: 3, fontWeight: 700 }}>
+              {job.requiredVehicleTypes[0]}
+            </span>
+          )}
+          {(job.trailerPlate || job.requireTrailer) && (
+            <span 
+              title={job.trailerPlate ? `ตู้: ${job.trailerPlate}` : "รอพ่วงตู้"}
+              style={{ marginLeft: "0.25rem", fontSize: "0.6rem", background: job.trailerPlate ? "#fef3c7" : "#fee2e2", color: job.trailerPlate ? "#b45309" : "#b91c1c", padding: "0.1rem 0.35rem", borderRadius: 3, fontWeight: 800, cursor: "help" }}
+            >
+              {job.trailerPlate ? "FT" : "C"}
+            </span>
+          )}
         </div>
         <div className="job-bar single">
           <div className="job-bar-segments">

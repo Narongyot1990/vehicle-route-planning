@@ -328,6 +328,7 @@ export function JobModal({ mode, job, onSave, onClose }: JobModalProps) {
       jobNumber: form.jobNumber ?? "NEW-0001",
       status: form.status ?? "draft",
       priority: form.priority ?? "normal",
+      assignmentStatus: form.assignedVehiclePlate ? "assigned" : "unassigned",
       routeTemplateId: form.routeTemplateId,
       stops: form.stops ?? [],
       directLeadTimeHours: form.directLeadTimeHours,

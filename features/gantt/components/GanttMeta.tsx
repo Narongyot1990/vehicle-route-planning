@@ -1,39 +1,50 @@
 import { useRef, type ChangeEvent } from "react";
 import Link from "next/link";
-import type { InteractionMode } from "@/features/gantt/hooks/useGanttChartState";
+import type { JobHistoryEntry } from "@/features/gantt/hooks/useJobHistory";
+import type { SaveIndicatorState } from "@/features/gantt/hooks/useJobs";
+import { HistorySplitButton } from "@/features/gantt/components/HistorySplitButton";
+import { SaveStatusIndicator } from "@/features/gantt/components/SaveStatusIndicator";
+import { Icon } from "@/components/ui/Icon";
+import TruckIcon from "@/assets/icons/TruckIcon.svg?url";
 
 type GanttMetaProps = {
-  mode: InteractionMode;
-  onModeChange: (nextMode: InteractionMode) => void;
   onGoToToday: () => void;
   onCustomDateNavigate: (dateValue: string) => void;
   hourWidth: number;
   onHourWidthChange: (width: number) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  undoLabel: string | null;
+  redoLabel: string | null;
+  undoEntries: JobHistoryEntry[];
+  redoEntries: JobHistoryEntry[];
+  historyBusy: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onUndoMany: (count: number) => void;
+  onRedoMany: (count: number) => void;
+  saveIndicator: SaveIndicatorState;
 };
 
-function PencilIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="edit-icon-svg">
-      <path
-        d="M4 20h4l10.5-10.5a1.414 1.414 0 0 0 0-2L16.5 5.5a1.414 1.414 0 0 0-2 0L4 16v4Z"
-        fill="currentColor"
-      />
-      <path d="m13.5 6.5 4 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function GanttMeta({
-  mode,
-  onModeChange,
   onGoToToday,
   onCustomDateNavigate,
   hourWidth,
-  onHourWidthChange
+  onHourWidthChange,
+  canUndo,
+  canRedo,
+  undoLabel,
+  redoLabel,
+  undoEntries,
+  redoEntries,
+  historyBusy,
+  onUndo,
+  onRedo,
+  onUndoMany,
+  onRedoMany,
+  saveIndicator
 }: GanttMetaProps) {
   const customDateInputRef = useRef<HTMLInputElement>(null);
-  const handleMoveMode = () => onModeChange("move");
-  const handleEditMode = () => onModeChange("edit");
   const handleTodayClick = () => onGoToToday();
   const handleCompactZoom = () => onHourWidthChange(22);
   const handleDetailedZoom = () => onHourWidthChange(44);
@@ -65,6 +76,9 @@ export function GanttMeta({
         <Link href="/jobs" style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: "6px", textDecoration: "none" }}>📋 Job Orders</Link>
         <Link href="/customers" style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: "6px", textDecoration: "none" }}>👥 Customers</Link>
         <Link href="/routes" style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: "6px", textDecoration: "none" }}>🗺️ Routes</Link>
+        <Link href="/vehicles" style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: "6px", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+          <Icon src={TruckIcon} width={14} height={14} /> Trucks
+        </Link>
       </div>
 
       {/* Date navigation & Controls (Right side) */}
@@ -105,24 +119,31 @@ export function GanttMeta({
           </div>
         </div>
 
-        <div className="control-cluster" aria-label="Interaction mode">
-          <div className="mode-switch">
-            <button
-              type="button"
-              className={`mode-button${mode === "move" ? " active" : ""}`}
-              onClick={handleMoveMode}
-            >
-              <span>Move</span>
-            </button>
-            <button
-              type="button"
-              className={`mode-button${mode === "edit" ? " active" : ""}`}
-              onClick={handleEditMode}
-            >
-              <PencilIcon />
-              <span>Edit</span>
-            </button>
+        <div className="control-cluster" aria-label="Undo and redo">
+          <div className="history-controls">
+            <HistorySplitButton
+              direction="undo"
+              disabled={!canUndo}
+              busy={historyBusy}
+              nextLabel={undoLabel}
+              entries={undoEntries}
+              onSingle={onUndo}
+              onMany={onUndoMany}
+            />
+            <HistorySplitButton
+              direction="redo"
+              disabled={!canRedo}
+              busy={historyBusy}
+              nextLabel={redoLabel}
+              entries={redoEntries}
+              onSingle={onRedo}
+              onMany={onRedoMany}
+            />
           </div>
+        </div>
+
+        <div className="control-cluster save-status-cluster" aria-label="Auto-save status">
+          <SaveStatusIndicator state={saveIndicator} />
         </div>
       </div>
     </div>

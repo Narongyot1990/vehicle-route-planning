@@ -9,6 +9,7 @@ import {
 } from "@/lib/gantt";
 import { TOOLBOX_TEMPLATES } from "@/features/gantt/constants";
 import type { Job } from "@/features/gantt/types/job";
+import { VEHICLE_BLOCK_BRANCH } from "@/features/gantt/hooks/useVehicleBlocks";
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -130,11 +131,12 @@ export function toolItemToPaletteJob(toolItem: JobItem, plannedStart: number): J
     routeTemplateId: undefined,
     stops: [],
     requiredVehicleTypes: [],
+    assignmentStatus: "assigned",
     assignedVehiclePlate: undefined,
     assignedDriverName: undefined,
     plannedStart,
-    branch: "TOOLS",
-    customerName: "Tools",
+    branch: VEHICLE_BLOCK_BRANCH,
+    customerName: "Vehicle Block",
     customerContact: "",
     customerPhone: "",
     createdAt: "",

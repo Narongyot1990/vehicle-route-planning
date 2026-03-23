@@ -18,7 +18,7 @@ import {
   type JobPlacement
 } from "@/lib/gantt";
 import type { EditingCell } from "@/features/gantt/hooks/useGanttChartState";
-import type { Vehicle } from "@/features/gantt/data/mockVehicles";
+import type { Vehicle } from "@/lib/types";
 import { TimelineBoardHeader } from "@/features/gantt/components/TimelineBoardHeader";
 import { VehicleTimelineRow } from "@/features/gantt/components/VehicleTimelineRow";
 

@@ -175,7 +175,11 @@ export function usePaletteJobCard(props: PaletteJobCardProps) {
 
   const handleUnplaceClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    const confirmed = window.confirm(`Are you sure you want to delete \"${job.jobNumber}\"?`);
+    const confirmed = window.confirm(
+      job.branch === "BLOCKS"
+        ? `Remove "${job.jobNumber}" from the assigned timeline?`
+        : `Move "${job.jobNumber}" back to Unassigned?`
+    );
     if (!confirmed) return;
     onUnplace?.(job.id);
   };

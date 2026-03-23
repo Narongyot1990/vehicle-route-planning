@@ -10,8 +10,8 @@ type JobPaletteProps = {
   paletteView: PaletteView;
   paletteFocusJobId: string | null;
   paletteFocusToken: number;
-  paletteJobs: Job[];
-  assignedJobs: Array<{ job: Job; placement: JobPlacement; atLabel: string }>;
+  unassignedJobs: Job[];
+  assignedItems: Array<{ job: Job; placement: JobPlacement; atLabel: string }>;
   activeDrag: DragPayload | null;
   editingJobId: string | null;
   editingPlacementJobId: string | null;
@@ -26,7 +26,7 @@ type JobPaletteProps = {
   onJobDragStart: (jobId: string, event: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
   onNavigateToJobPlacement: (jobId: string) => void;
-  onUnplaceJob: (jobId: string) => void;
+  onUnassignJob: (jobId: string) => void;
   onEditJob: (updatedJob: JobItem) => void;
   onStartEditJob: (jobId: string) => void;
   onCancelEditJob: () => void;
@@ -49,8 +49,8 @@ export function JobPalette({
   paletteView,
   paletteFocusJobId,
   paletteFocusToken,
-  paletteJobs,
-  assignedJobs,
+  unassignedJobs,
+  assignedItems,
   activeDrag,
   editingJobId,
   editingPlacementJobId,
@@ -65,7 +65,7 @@ export function JobPalette({
   onJobDragStart,
   onDragEnd,
   onNavigateToJobPlacement,
-  onUnplaceJob,
+  onUnassignJob,
   onEditJob,
   onStartEditJob,
   onCancelEditJob,
@@ -84,7 +84,7 @@ export function JobPalette({
   const assignedCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const handleShowUnassigned = () => onPaletteViewChange("unassigned");
   const handleShowAssigned = () => onPaletteViewChange("assigned");
-  const visibleCount = showingAssigned ? assignedJobs.length : paletteJobs.length;
+  const visibleCount = showingAssigned ? assignedItems.length : unassignedJobs.length;
 
   useEffect(() => {
     if (!showingAssigned || !paletteFocusJobId || paletteFocusToken === 0) {
@@ -130,9 +130,9 @@ export function JobPalette({
           {sidebarOpen ? "≡" : "☰"}
         </button>
 
-        <div className="palette-stat" aria-label={`${visibleCount} jobs in the current list`}>
+        <div className="palette-stat" aria-label={`${visibleCount} items in the current list`}>
           <strong>{visibleCount}</strong>
-          <span>jobs</span>
+          <span>items</span>
         </div>
       </header>
 
@@ -143,28 +143,28 @@ export function JobPalette({
             className={`palette-tab${showingAssigned ? "" : " active"}`}
             onClick={handleShowUnassigned}
           >
-            Not Placed
+            Unassigned
           </button>
           <button
             type="button"
             className={`palette-tab${showingAssigned ? " active" : ""}`}
             onClick={handleShowAssigned}
           >
-            Placed
+            Assigned
           </button>
         </div>
       </div>
 
       <div className="palette-list">
-        {!showingAssigned && paletteJobs.length === 0 ? (
-          <div className="empty-palette">No jobs left in the pool. Drag a bar back from the timeline to unassign it.</div>
+        {!showingAssigned && unassignedJobs.length === 0 ? (
+          <div className="empty-palette">No unassigned jobs left. Drag a job back from the timeline to unassign it.</div>
         ) : null}
-        {showingAssigned && assignedJobs.length === 0 ? (
-          <div className="empty-palette">No jobs have been placed on the timeline yet.</div>
+        {showingAssigned && assignedItems.length === 0 ? (
+          <div className="empty-palette">No assigned jobs or blocks on the timeline yet.</div>
         ) : (
           <>
             {!showingAssigned
-              ? paletteJobs.map((job) => (
+              ? unassignedJobs.map((job) => (
                   <PaletteJobCard
                     key={job.id}
                     job={job}
@@ -188,7 +188,7 @@ export function JobPalette({
                     onPointerDragCancel={onPointerDragCancel}
                   />
                 ))
-              : assignedJobs.map((item) => (
+              : assignedItems.map((item) => (
                   <PaletteJobCard
                     key={item.job.id}
                     job={item.job}
@@ -206,10 +206,10 @@ export function JobPalette({
                     }}
                     isDragging={false}
                     onNavigate={onNavigateToJobPlacement}
-                    onUnplace={onUnplaceJob}
-                    onStartEdit={onStartEditJob}
-                    onSaveEdit={onEditJob}
-                    onCancelEdit={onCancelEditJob}
+                    onUnplace={onUnassignJob}
+                    onStartEdit={item.job.branch === "BLOCKS" ? undefined : onStartEditJob}
+                    onSaveEdit={item.job.branch === "BLOCKS" ? undefined : onEditJob}
+                    onCancelEdit={item.job.branch === "BLOCKS" ? undefined : onCancelEditJob}
                     onStartEditPlacement={onStartEditPlacement}
                     onUpdatePlacement={onUpdatePlacement}
                     onCancelEditPlacement={onCancelEditPlacement}

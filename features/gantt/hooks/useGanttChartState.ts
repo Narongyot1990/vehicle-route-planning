@@ -21,9 +21,10 @@ import {
   type JobPlacement,
   type JobSegment
 } from "@/lib/gantt";
-import type { Vehicle } from "@/features/gantt/data/mockVehicles";
+import type { Vehicle } from "@/lib/types";
 import { type Job, getJobTotalHours } from "@/features/gantt/types/job";
 import { useTimelineNavigation } from "./useTimelineNavigation";
+import { useJobHistory } from "./useJobHistory";
 import { useToolInstances, toolItemToPaletteJob } from "./useToolInstances";
 
 // ── Exported Types ───────────────────────────────────────────────────────────
@@ -43,24 +44,38 @@ export type PaletteView = "unassigned" | "assigned";
 export function useGanttChartState(
   vehicles: Vehicle[],
   jobs: Job[],
-  onJobUpdate?: (updated: Job) => void,
+  vehicleBlocks: Job[],
+  onPlanningItemUpdate?: (updated: Job) => void | boolean | Promise<void | boolean>,
+  onCreateVehicleBlock?: (templateItem: JobItem, vehicleId: string, startIndex: number) => Promise<Job | null>,
 ) {
   // ── Compose Sub-Hooks ───────────────────────────────────────────────────────
   const nav = useTimelineNavigation();
   const tools = useToolInstances();
 
   // ── JobItem derivation ──────────────────────────────────────────────────────
-  const jobItems = useMemo(
-    () => [...jobs.map(jobToJobItem), ...tools.toolInstances],
-    [jobs, tools.toolInstances]
-  );
+  const vehicleTypeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    vehicles.forEach((v) => { map[v.licensePlate] = v.vehicleType; });
+    return map;
+  }, [vehicles]);
+
+  const jobItems = useMemo(() => {
+    const jobBasedItems = [...jobs, ...vehicleBlocks].map((job) => {
+      const item = jobToJobItem(job);
+      if (job.assignedVehiclePlate) {
+        item.assignedVehicleType = vehicleTypeMap[job.assignedVehiclePlate];
+      }
+      return item;
+    });
+    return [...jobBasedItems, ...tools.toolInstances];
+  }, [jobs, vehicleBlocks, vehicleTypeMap, tools.toolInstances]);
 
   // ── Placements ──────────────────────────────────────────────────────────────
   const [placements, setPlacements] = useState<JobPlacement[]>([]);
 
-  // Sync placements from jobs when jobs data loads/changes
+  // Sync placements from planning items when data loads/changes
   useEffect(() => {
-    const jobBased = jobs
+    const persistedPlacements = [...jobs, ...vehicleBlocks]
       .filter((j) => j.assignedVehiclePlate && j.plannedStart != null)
       .map((j) => ({
         jobId: j.id,
@@ -68,15 +83,15 @@ export function useGanttChartState(
         startIndex: j.plannedStart!,
       }));
 
-    if (jobBased.length === 0) return;
-
     setPlacements((prev) => {
-      const prevIds = new Set(prev.map((p) => p.jobId));
-      const incoming = jobBased.filter((p) => !prevIds.has(p.jobId));
-      if (incoming.length === 0) return prev;
-      return [...prev, ...incoming];
+      const toolPlacements = prev.filter((placement) => placement.jobId.startsWith("tool-instance-"));
+      const next = [...persistedPlacements, ...toolPlacements];
+      if (JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev;
+      }
+      return next;
     });
-  }, [jobs]);
+  }, [jobs, vehicleBlocks]);
 
   // ── Interaction State ───────────────────────────────────────────────────────
   const [hoveredDrop, setHoveredDrop] = useState<{ vehicleId: string; startIndex: number } | null>(null);
@@ -105,25 +120,60 @@ export function useGanttChartState(
     return next;
   }, [jobs]);
 
+  const vehicleBlocksById = useMemo(() => {
+    const next = new Map<string, Job>();
+    for (const block of vehicleBlocks) next.set(block.id, block);
+    return next;
+  }, [vehicleBlocks]);
+
+  const planningItemsById = useMemo(() => {
+    const next = new Map<string, Job>();
+    for (const job of jobs) next.set(job.id, job);
+    for (const block of vehicleBlocks) next.set(block.id, block);
+    return next;
+  }, [jobs, vehicleBlocks]);
+
   const placementsByJobId = useMemo(() => {
     const next = new Map<string, JobPlacement>();
     for (const placement of placements) next.set(placement.jobId, placement);
     return next;
   }, [placements]);
 
-  const findJob = (jobId: string) => jobsById.get(jobId);
+  const findJob = (jobId: string) => planningItemsById.get(jobId);
   const findPlacement = (jobId: string) => placementsByJobId.get(jobId);
 
-  const paletteJobs = useMemo(
-    () => jobs.filter((job) => !placementsByJobId.has(job.id)),
+  const mapSegmentsToJobStops = useCallback((job: Job, updatedItem: JobItem) => {
+    return updatedItem.segments.map((segment, index) => {
+      const originalStop = job.stops.find((stop) => stop.id === segment.id) ?? job.stops[index];
+      return {
+        id: originalStop?.id ?? segment.id,
+        label: segment.label,
+        address: originalStop?.address ?? "",
+        contactName: originalStop?.contactName ?? "",
+        contactPhone: originalStop?.contactPhone ?? "",
+        scheduledTime: originalStop?.scheduledTime ?? "08:00",
+        timeWindowStart: originalStop?.timeWindowStart ?? "08:00",
+        timeWindowEnd: originalStop?.timeWindowEnd ?? "18:00",
+        dwellHours: originalStop?.dwellHours ?? 0,
+        transitFromPrevHours: segment.durationHours,
+        order: index + 1,
+        status: originalStop?.status ?? "pending",
+        color: originalStop?.color ?? segment.color,
+        notes: originalStop?.notes,
+      };
+    });
+  }, []);
+
+  const unassignedJobs = useMemo(
+    () => jobs.filter((job) => job.assignmentStatus !== "assigned"),
     [jobs, placementsByJobId]
   );
 
-  const assignedJobs = useMemo(
+  const assignedItems = useMemo(
     () =>
       placements
         .map((placement) => {
-          const job = jobsById.get(placement.jobId);
+          const job = planningItemsById.get(placement.jobId);
           if (job) {
             return {
               job,
@@ -142,7 +192,7 @@ export function useGanttChartState(
           };
         })
         .filter((item): item is { job: Job; placement: JobPlacement; atLabel: string } => item !== null),
-    [jobsById, placements, nav.timelineOrigin, tools.toolInstances]
+    [planningItemsById, placements, nav.timelineOrigin, tools.toolInstances]
   );
 
   // ── Conflict detection ──────────────────────────────────────────────────────
@@ -194,14 +244,14 @@ export function useGanttChartState(
   useEffect(() => { activeDragRef.current = activeDrag; }, [activeDrag]);
 
   // ── Interaction State Helpers ───────────────────────────────────────────────
-  const clearInteractionState = () => {
+  const clearInteractionState = useCallback(() => {
     hoveredDropRef.current = null;
     paletteActiveRef.current = false;
     activeDragRef.current = null;
     setHoveredDrop(null);
     setPaletteActive(false);
     setActiveDrag(null);
-  };
+  }, []);
 
   const handleModeChange = (nextMode: InteractionMode) => {
     setMode(nextMode);
@@ -233,7 +283,7 @@ export function useGanttChartState(
     clearInteractionState();
   };
 
-  const handleGoToPlacedJobInPalette = (jobId: string) => {
+  const handleGoToAssignedItemInPalette = (jobId: string) => {
     setPaletteView("assigned");
     setPaletteFocusJobId(jobId);
     setPaletteFocusToken((current) => current + 1);
@@ -244,39 +294,88 @@ export function useGanttChartState(
     setPaletteFocusJobId(null);
   };
 
+  const syncPlacementWithJob = useCallback((job: Job) => {
+    setPlacements((current) => {
+      const next = current.filter((placement) => placement.jobId !== job.id);
+
+      if (!job.assignedVehiclePlate || job.plannedStart == null) {
+        return next;
+      }
+
+      return [
+        ...next,
+        {
+          jobId: job.id,
+          vehicleId: job.assignedVehiclePlate,
+          startIndex: job.plannedStart,
+        }
+      ];
+    });
+  }, []);
+
+  const history = useJobHistory({
+    jobsById: planningItemsById,
+    onJobUpdate: onPlanningItemUpdate,
+    syncPlacementWithJob,
+  });
+
   // ── Placement Handlers ──────────────────────────────────────────────────────
-  const handleUnplaceJob = (jobId: string) => {
+  const handleUnassignJob = (jobId: string) => {
     if (jobId.startsWith("tool-instance-")) {
       tools.removeToolInstance(jobId);
       setPlacements((current) => current.filter((p) => p.jobId !== jobId));
       return;
     }
 
-    setPlacements((current) => current.filter((placement) => placement.jobId !== jobId));
-
-    const originalJob = jobsById.get(jobId);
-    if (originalJob && onJobUpdate) {
-      onJobUpdate({ ...originalJob, assignedVehiclePlate: undefined, plannedStart: undefined });
+    const originalItem = planningItemsById.get(jobId);
+    if (originalItem) {
+      void history.applyJobChange(
+        {
+          ...originalItem,
+          assignmentStatus: "unassigned",
+          assignedVehiclePlate: undefined,
+          plannedStart: undefined,
+        },
+        { label: originalItem.branch === "BLOCKS" ? `Remove ${originalItem.jobNumber}` : `Unassign ${originalItem.jobNumber}` }
+      );
     }
   };
 
-  const handleRemovePlacedItem = (jobId: string) => {
+  const handleRemoveAssignedItem = (jobId: string) => {
     if (jobId.startsWith("tool-instance-")) {
       tools.removeToolInstance(jobId);
       setPlacements((current) => current.filter((p) => p.jobId !== jobId));
       return;
     }
-    handleUnplaceJob(jobId);
+    handleUnassignJob(jobId);
   };
 
   const handleEditJob = (updatedJob: JobItem) => {
-    const originalJob = jobsById.get(updatedJob.id);
-    if (originalJob && onJobUpdate) {
-      const updatedJobStops = updatedJob.segments.map((seg, i) => ({
-        ...originalJob.stops[i],
-        transitFromPrevHours: seg.durationHours,
-      }));
-      onJobUpdate({ ...originalJob, stops: updatedJobStops });
+    const originalJob = planningItemsById.get(updatedJob.id);
+    if (originalJob) {
+      if (originalJob.branch === "BLOCKS") {
+        void history.applyJobChange(
+          {
+            ...originalJob,
+            routeName: updatedJob.title.trim() || originalJob.routeName || originalJob.jobNumber,
+            jobNumber: updatedJob.title.trim() || originalJob.jobNumber,
+            directLeadTimeHours: updatedJob.segments.reduce((sum, segment) => sum + segment.durationHours, 0),
+          },
+          { label: `Edit ${originalJob.jobNumber}` }
+        );
+        setEditingJobId(null);
+        return;
+      }
+
+      const updatedJobStops = mapSegmentsToJobStops(originalJob, updatedJob);
+      void history.applyJobChange(
+        {
+          ...originalJob,
+          routeName: updatedJob.title.trim() || originalJob.routeName || originalJob.jobNumber,
+          stops: updatedJobStops,
+        },
+        { label: `Edit ${originalJob.jobNumber}` }
+      );
     }
     setEditingJobId(null);
   };
@@ -288,32 +387,96 @@ export function useGanttChartState(
     const job = findJob(jobId);
     if (!job) { setEditingPlacementJobId(null); return; }
 
-    const durationHours = getJobTotalHours(job);
+    const durationHours = job.directLeadTimeHours ?? getJobTotalHours(job);
     const hasConflict = isPlacementConflict(
       jobItems, placements, jobId, currentPlacement.vehicleId, newStartIndex, durationHours
     );
 
     if (hasConflict) { setEditingPlacementJobId(null); return; }
 
-    setPlacements((current) =>
-      current.map((placement) =>
-        placement.jobId === jobId ? { ...placement, startIndex: newStartIndex } : placement
-      )
+    void history.applyJobChange(
+      {
+        ...job,
+        assignmentStatus: "assigned",
+        assignedVehiclePlate: currentPlacement.vehicleId,
+        plannedStart: newStartIndex,
+      },
+      { label: `Move ${job.jobNumber}` }
     );
-
-    if (onJobUpdate) onJobUpdate({ ...job, plannedStart: newStartIndex });
     setEditingPlacementJobId(null);
   };
 
   const handleSavePlannedStart = (jobId: string, plannedStart: number) => {
-    const job = jobsById.get(jobId);
-    if (job && onJobUpdate) onJobUpdate({ ...job, plannedStart });
+    const job = planningItemsById.get(jobId);
+    if (job) {
+      void history.applyJobChange(
+        {
+          ...job,
+          plannedStart,
+        },
+        { label: `Reschedule ${job.jobNumber}` }
+      );
+    }
     setEditingPlannedStartJobId(null);
   };
 
-  const handleResizeToolInstance = (jobId: string, nextDurationHours: number) => {
-    return tools.handleResizeToolInstance(jobId, nextDurationHours, jobItems, placements, findPlacement);
+  const handleResizeAssignedItem = (jobId: string, nextDurationHours: number) => {
+    if (jobId.startsWith("tool-instance-")) {
+      return tools.handleResizeToolInstance(jobId, nextDurationHours, jobItems, placements, findPlacement);
+    }
+
+    const item = planningItemsById.get(jobId);
+    if (!item || item.branch !== "BLOCKS") {
+      return false;
+    }
+
+    void history.applyJobChange(
+      {
+        ...item,
+        directLeadTimeHours: nextDurationHours,
+      },
+      { label: `Resize ${item.jobNumber}` }
+    );
+    return true;
   };
+
+  const buildRemovedBlockSnapshot = useCallback((job: Job): Job => ({
+    ...job,
+    assignmentStatus: "unassigned",
+    assignedVehiclePlate: undefined,
+    plannedStart: undefined,
+  }), []);
+
+  const persistTemplateBlock = useCallback(async (
+    templateJobId: string,
+    vehicleId: string,
+    startIndex: number,
+  ) => {
+    const templateItem = tools.toolInstances.find((item) => item.id === templateJobId)
+      ?? tools.pendingToolDragInstanceRef.current;
+
+    if (!templateItem || !onCreateVehicleBlock) {
+      tools.removeToolInstance(templateJobId);
+      setPlacements((current) => current.filter((placement) => placement.jobId !== templateJobId));
+      return;
+    }
+
+    const createdBlock = await onCreateVehicleBlock(templateItem, vehicleId, startIndex);
+    tools.pendingToolDragJobIdRef.current = null;
+    tools.pendingToolDragInstanceRef.current = null;
+    tools.removeToolInstance(templateJobId);
+    setPlacements((current) => current.filter((placement) => placement.jobId !== templateJobId));
+    tools.setToolDragJobId(null);
+    tools.setActiveToolTemplateId(null);
+
+    if (createdBlock) {
+      history.recordHistoryEntry(
+        buildRemovedBlockSnapshot(createdBlock),
+        createdBlock,
+        `Add ${createdBlock.jobNumber}`
+      );
+    }
+  }, [buildRemovedBlockSnapshot, history, onCreateVehicleBlock, tools]);
 
   // ── Drag Payload Helpers ────────────────────────────────────────────────────
   const buildJobDragPayload = (jobId: string) => {
@@ -355,13 +518,25 @@ export function useGanttChartState(
       if (blockedByConflict) { setEditingCell(null); return; }
     }
 
-    const originalJob = jobsById.get(jobId);
-    if (originalJob && onJobUpdate) {
+    const originalJob = planningItemsById.get(jobId);
+    if (originalJob) {
+      if (originalJob.branch === "BLOCKS") {
+        void history.applyJobChange(
+          { ...originalJob, directLeadTimeHours: nextHours },
+          { label: `Adjust ${originalJob.jobNumber}` }
+        );
+        setEditingCell(null);
+        return;
+      }
+
       const segIndex = originalJob.stops.findIndex((s) => s.id === segmentId);
       if (segIndex >= 0) {
         const updatedStops = [...originalJob.stops];
         updatedStops[segIndex] = { ...updatedStops[segIndex], transitFromPrevHours: nextHours };
-        onJobUpdate({ ...originalJob, stops: updatedStops });
+        void history.applyJobChange(
+          { ...originalJob, stops: updatedStops },
+          { label: `Adjust ${originalJob.jobNumber}` }
+        );
       }
     }
 
@@ -381,26 +556,30 @@ export function useGanttChartState(
       return;
     }
 
-    setPlacements((current) => {
-      const existing = current.find((placement) => placement.jobId === payload.jobId);
-      if (existing) {
-        return current.map((placement) =>
-          placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
+    if (payload.jobId.startsWith("tool-instance-")) {
+      setPlacements((current) => {
+        const existing = current.find((placement) => placement.jobId === payload.jobId);
+        if (existing) {
+          return current.map((placement) =>
+            placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
+          );
+        }
+        return [...current, { jobId: payload.jobId, vehicleId, startIndex }];
+      });
+      void persistTemplateBlock(payload.jobId, vehicleId, startIndex);
+    } else {
+      const originalJob = planningItemsById.get(payload.jobId);
+      if (originalJob) {
+        void history.applyJobChange(
+          {
+            ...originalJob,
+            assignmentStatus: "assigned",
+            assignedVehiclePlate: vehicleId,
+            plannedStart: startIndex,
+          },
+          { label: `Assign ${originalJob.jobNumber}` }
         );
       }
-      return [...current, { jobId: payload.jobId, vehicleId, startIndex }];
-    });
-
-    const originalJob = jobsById.get(payload.jobId);
-    if (originalJob && onJobUpdate) {
-      onJobUpdate({ ...originalJob, assignedVehiclePlate: vehicleId, plannedStart: startIndex });
-    }
-
-    if (payload.jobId === tools.toolDragJobId) {
-      tools.pendingToolDragJobIdRef.current = null;
-      tools.pendingToolDragInstanceRef.current = null;
-      tools.setToolDragJobId(null);
-      tools.setActiveToolTemplateId(null);
     }
 
     clearInteractionState();
@@ -433,10 +612,17 @@ export function useGanttChartState(
       return;
     }
 
-    setPlacements((current) => current.filter((placement) => placement.jobId !== payload.jobId));
-    const originalJob = jobsById.get(payload.jobId);
-    if (originalJob && onJobUpdate) {
-      onJobUpdate({ ...originalJob, assignedVehiclePlate: undefined, plannedStart: undefined });
+    const originalJob = planningItemsById.get(payload.jobId);
+    if (originalJob) {
+      void history.applyJobChange(
+        {
+          ...originalJob,
+          assignmentStatus: "unassigned",
+          assignedVehiclePlate: undefined,
+          plannedStart: undefined,
+        },
+        { label: originalJob.branch === "BLOCKS" ? `Remove ${originalJob.jobNumber}` : `Unassign ${originalJob.jobNumber}` }
+      );
     }
     clearInteractionState();
   };
@@ -515,11 +701,27 @@ export function useGanttChartState(
       clearInteractionState();
       return;
     }
-    setPlacements((current) =>
-      current.map((placement) =>
-        placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
-      )
-    );
+    if (payload.jobId.startsWith("tool-instance-")) {
+      setPlacements((current) =>
+        current.map((placement) =>
+          placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
+        )
+      );
+      void persistTemplateBlock(payload.jobId, vehicleId, startIndex);
+    } else {
+      const originalJob = planningItemsById.get(payload.jobId);
+      if (originalJob) {
+        void history.applyJobChange(
+          {
+            ...originalJob,
+            assignmentStatus: "assigned",
+            assignedVehiclePlate: vehicleId,
+            plannedStart: startIndex,
+          },
+          { label: `Move ${originalJob.jobNumber}` }
+        );
+      }
+    }
     clearInteractionState();
   };
 
@@ -639,15 +841,31 @@ export function useGanttChartState(
       if (vehicleId && !isNaN(hourIndex)) {
         const startIndex = nav.toAbsoluteIndex(hourIndex);
         if (canDrop(vehicleId, startIndex, payload)) {
-          setPlacements((current) => {
-            const existing = current.find((placement) => placement.jobId === payload.jobId);
-            if (existing) {
-              return current.map((placement) =>
-                placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
+          if (payload.jobId.startsWith("tool-instance-")) {
+            setPlacements((current) => {
+              const existing = current.find((placement) => placement.jobId === payload.jobId);
+              if (existing) {
+                return current.map((placement) =>
+                  placement.jobId === payload.jobId ? { ...placement, vehicleId, startIndex } : placement
+                );
+              }
+              return [...current, { jobId: payload.jobId, vehicleId, startIndex }];
+            });
+            void persistTemplateBlock(payload.jobId, vehicleId, startIndex);
+          } else {
+            const originalJob = planningItemsById.get(payload.jobId);
+            if (originalJob) {
+              void history.applyJobChange(
+                {
+                  ...originalJob,
+                  assignmentStatus: "assigned",
+                  assignedVehiclePlate: vehicleId,
+                  plannedStart: startIndex,
+                },
+                { label: `Assign ${originalJob.jobNumber}` }
               );
             }
-            return [...current, { jobId: payload.jobId, vehicleId, startIndex }];
-          });
+          }
         }
       }
       clearInteractionState();
@@ -662,7 +880,18 @@ export function useGanttChartState(
         tools.removeToolInstance(payload.jobId);
         setPlacements((current) => current.filter((p) => p.jobId !== payload.jobId));
       } else {
-        setPlacements((current) => current.filter((placement) => placement.jobId !== payload.jobId));
+        const originalJob = planningItemsById.get(payload.jobId);
+        if (originalJob) {
+          void history.applyJobChange(
+            {
+              ...originalJob,
+              assignmentStatus: "unassigned",
+              assignedVehiclePlate: undefined,
+              plannedStart: undefined,
+            },
+            { label: originalJob.branch === "BLOCKS" ? `Remove ${originalJob.jobNumber}` : `Unassign ${originalJob.jobNumber}` }
+          );
+        }
       }
       clearInteractionState();
       return;
@@ -672,6 +901,42 @@ export function useGanttChartState(
   };
 
   const handlePointerDragCancel = () => clearInteractionState();
+
+  const handleUndo = useCallback(() => {
+    setEditingCell(null);
+    setEditingJobId(null);
+    setEditingPlacementJobId(null);
+    setEditingPlannedStartJobId(null);
+    clearInteractionState();
+    void history.handleUndo();
+  }, [clearInteractionState, history]);
+
+  const handleRedo = useCallback(() => {
+    setEditingCell(null);
+    setEditingJobId(null);
+    setEditingPlacementJobId(null);
+    setEditingPlannedStartJobId(null);
+    clearInteractionState();
+    void history.handleRedo();
+  }, [clearInteractionState, history]);
+
+  const handleUndoMany = useCallback((count: number) => {
+    setEditingCell(null);
+    setEditingJobId(null);
+    setEditingPlacementJobId(null);
+    setEditingPlannedStartJobId(null);
+    clearInteractionState();
+    void history.handleUndoMany(count);
+  }, [clearInteractionState, history]);
+
+  const handleRedoMany = useCallback((count: number) => {
+    setEditingCell(null);
+    setEditingJobId(null);
+    setEditingPlacementJobId(null);
+    setEditingPlannedStartJobId(null);
+    clearInteractionState();
+    void history.handleRedoMany(count);
+  }, [clearInteractionState, history]);
 
   // ── Return ──────────────────────────────────────────────────────────────────
   return {
@@ -710,8 +975,15 @@ export function useGanttChartState(
     paletteFocusToken,
     editingCell,
     editMode,
-    paletteJobs,
-    assignedJobs,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    undoLabel: history.undoLabel,
+    redoLabel: history.redoLabel,
+    undoEntries: history.undoEntries,
+    redoEntries: history.redoEntries,
+    historyBusy: history.historyBusy,
+    unassignedJobs,
+    assignedItems,
     editingJobId,
     setEditingJobId,
     editingPlacementJobId,
@@ -727,13 +999,13 @@ export function useGanttChartState(
     handleGoToToday,
     handleCustomDateNavigate,
     handleNavigateToJobPlacement,
-    handleGoToPlacedJobInPalette,
-    handleUnplaceJob,
-    handleRemovePlacedItem,
+    handleGoToAssignedItemInPalette,
+    handleUnassignJob,
+    handleRemoveAssignedItem,
     handleEditJob,
     handleClearSelection,
     handleUpdatePlacement,
-    handleResizeToolInstance,
+    handleResizeAssignedItem,
     handleSavePlannedStart,
     handleTimelineDrop,
     handlePaletteDrop,
@@ -752,6 +1024,10 @@ export function useGanttChartState(
     handlePointerDragMove,
     handlePointerDragEnd,
     handlePointerDragCancel,
+    handleUndo,
+    handleRedo,
+    handleUndoMany,
+    handleRedoMany,
     handleSegmentClick,
     handleSegmentInputChange,
     handleSegmentInputKeyDown,
