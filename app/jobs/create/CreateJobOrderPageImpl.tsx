@@ -156,9 +156,11 @@ export default function CreateJobOrderPageImpl() {
     return (
       <div className="job-create-v2 job-create-v2--success">
         <div className="job-create-v2__success-card">
-          <div className="job-create-v2__success-badge">OK</div>
+          <div className="job-create-v2__success-badge">
+            <span>OK</span>
+          </div>
           <h1>Job order created</h1>
-          <p>Redirecting back to the jobs list...</p>
+          <p>Returning to Jobs...</p>
         </div>
       </div>
     );
@@ -168,10 +170,14 @@ export default function CreateJobOrderPageImpl() {
     <div className="job-create-v2">
       <div className="job-create-v2__shell">
         <header className="job-create-v2__header">
-          <div>
-            <button type="button" className="job-create-v2__back" onClick={() => router.push("/jobs")}>Back to Jobs</button>
-            <h1>Create Job Order</h1>
-            <p>Compact layout with the key choices up front and a live summary on the side.</p>
+          <div className="job-create-v2__header-main">
+            <button type="button" className="job-create-v2__back job-create-v2__back--icon" onClick={() => router.push("/jobs")}>
+              <span>Back</span>
+            </button>
+            <div className="job-create-v2__title">
+              <span className="job-create-v2__eyebrow">New job</span>
+              <h1>Create Job Order</h1>
+            </div>
           </div>
           <div className="job-create-v2__jobno">
             <span>Job No</span>
@@ -183,14 +189,35 @@ export default function CreateJobOrderPageImpl() {
           <div className="job-create-v2__loading">Loading customers...</div>
         ) : (
           <form className="job-create-v2__layout" onSubmit={handleSubmit}>
+            <div className="job-create-v2__top-strip">
+              <div className="job-create-v2__status-strip">
+                {checklist.map((item) => (
+                  <div key={item.label} className={`job-create-v2__status-pill${item.done ? " is-done" : ""}`}>
+                    <i />
+                    <span>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="job-create-v2__top-meta">
+                <div className="job-create-v2__top-meta-item">
+                  <span>ETA</span>
+                  <strong>{route ? endTime(plannedTime, totalHours) : "--:--"}</strong>
+                </div>
+                <div className="job-create-v2__top-meta-item">
+                  <span>Duration</span>
+                  <strong>{route ? fmtHours(totalHours) : "-"}</strong>
+                </div>
+                <div className="job-create-v2__top-meta-item job-create-v2__top-meta-item--accent">
+                  <strong>{progress}%</strong>
+                </div>
+              </div>
+            </div>
+
             <div className="job-create-v2__main">
               <section className="job-create-v2__card">
-                <div className="job-create-v2__section-head">
+                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
                   <span>01</span>
-                  <div>
-                    <h2>Customer</h2>
-                    <p>Pick the customer first so only relevant routes and trucks show up.</p>
-                  </div>
+                  <h2>Customer</h2>
                 </div>
                 <div className="job-create-v2__grid">
                   <label className="job-create-v2__field">
@@ -201,25 +228,22 @@ export default function CreateJobOrderPageImpl() {
                     </select>
                   </label>
                   <div className="job-create-v2__info">
-                    <span className="job-create-v2__eyebrow">Customer details</span>
+                    <span className="job-create-v2__eyebrow">Details</span>
                     {customer ? (
                       <div className="job-create-v2__stack">
                         <div><strong>Contact</strong><span>{customer.contactName || "-"}</span></div>
                         <div><strong>Phone</strong><span>{customer.phone || "-"}</span></div>
                         <div><strong>Address</strong><span>{customer.address || "-"}</span></div>
                       </div>
-                    ) : <p>Choose a customer to preview the details.</p>}
+                    ) : <p>Select customer</p>}
                   </div>
                 </div>
               </section>
 
               <section className="job-create-v2__card">
-                <div className="job-create-v2__section-head">
+                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
                   <span>02</span>
-                  <div>
-                    <h2>Route Setup</h2>
-                    <p>Choose the truck type first, then pick a route that supports it.</p>
-                  </div>
+                  <h2>Route</h2>
                 </div>
                 <label className="job-create-v2__field">
                   <span>Truck type *</span>
@@ -241,7 +265,7 @@ export default function CreateJobOrderPageImpl() {
                     {customerId && truckType && !filteredRoutes.length && !routesLoading ? <small className="warning">No routes found for {truckType}</small> : null}
                   </label>
                   <div className="job-create-v2__info">
-                    <span className="job-create-v2__eyebrow">Route snapshot</span>
+                    <span className="job-create-v2__eyebrow">Snapshot</span>
                     {route ? (
                       <>
                         <div className="job-create-v2__pills">
@@ -249,9 +273,8 @@ export default function CreateJobOrderPageImpl() {
                           <span>{fmtHours(route.totalDurationHours)}</span>
                           <span>{(route.requiredVehicleTypes ?? []).join(", ") || "Any truck"}</span>
                         </div>
-                        <p>{route.description || "No route description"}</p>
                       </>
-                    ) : <p>Select a route to preview duration and requirements.</p>}
+                    ) : <p>Select route</p>}
                   </div>
                 </div>
                 {route ? (
@@ -269,7 +292,7 @@ export default function CreateJobOrderPageImpl() {
                           <b>{index + 1}</b>
                           <div>
                             <strong>{item.label}</strong>
-                            <span>Transit {fmtHours(item.transitHours)} • Dwell {fmtHours(item.dwellHours)}</span>
+                            <span>Transit {fmtHours(item.transitHours)} / Dwell {fmtHours(item.dwellHours)}</span>
                           </div>
                         </div>
                       ))}
@@ -282,7 +305,7 @@ export default function CreateJobOrderPageImpl() {
                       <input type="checkbox" checked={includeReturnTrip} disabled={!route?.returnInfo?.enabled} onChange={(e) => setIncludeReturnTrip(e.target.checked)} />
                       <strong>Return trip</strong>
                     </div>
-                    <p>{route?.returnInfo?.enabled ? `Extra ${fmtHours((route.returnInfo.dwellHours ?? 0) + (route.returnInfo.transitHours ?? 0))}` : "No return trip configured"}</p>
+                    <p>{route?.returnInfo?.enabled ? `+ ${fmtHours((route.returnInfo.dwellHours ?? 0) + (route.returnInfo.transitHours ?? 0))}` : "Unavailable"}</p>
                   </label>
                   <label className="job-create-v2__option">
                     <div>
@@ -292,19 +315,16 @@ export default function CreateJobOrderPageImpl() {
                     {trailerEnabled && requireTrailer ? (
                       <input value={trailerPlate} onChange={(e) => setTrailerPlate(e.target.value)} placeholder="Optional trailer plate" />
                     ) : (
-                      <p>{trailerEnabled ? "Optional plate can be added now or later" : "Not applicable to this truck type"}</p>
+                      <p>{trailerEnabled ? "Optional" : "Unavailable"}</p>
                     )}
                   </label>
                 </div>
               </section>
 
               <section className="job-create-v2__card">
-                <div className="job-create-v2__section-head">
+                <div className="job-create-v2__section-head job-create-v2__section-head--compact">
                   <span>03</span>
-                  <div>
-                    <h2>Schedule</h2>
-                    <p>Set the planned start and confirm the estimated finish time.</p>
-                  </div>
+                  <h2>Schedule</h2>
                 </div>
                 <div className="job-create-v2__grid">
                   <label className="job-create-v2__field">
@@ -322,7 +342,7 @@ export default function CreateJobOrderPageImpl() {
                 </div>
                 <label className="job-create-v2__field">
                   <span>Notes</span>
-                  <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional note for dispatch or operations" />
+                  <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
                 </label>
               </section>
             </div>
@@ -350,7 +370,7 @@ export default function CreateJobOrderPageImpl() {
                 </div>
                 <div className="job-create-v2__meta">
                   <span className="job-create-v2__eyebrow">Planning</span>
-                  <strong>{route ? `${fmtHours(totalHours)} • finish around ${endTime(plannedTime, totalHours)}` : "No route selected yet"}</strong>
+                  <strong>{route ? `${fmtHours(totalHours)} / finish ${endTime(plannedTime, totalHours)}` : "No route selected yet"}</strong>
                 </div>
                 <div className="job-create-v2__meta">
                   <span className="job-create-v2__eyebrow">Options</span>
@@ -366,6 +386,28 @@ export default function CreateJobOrderPageImpl() {
                 </div>
               </div>
             </aside>
+
+            <div className="job-create-v2__action-bar">
+              <div className="job-create-v2__action-meta">
+                <div className="job-create-v2__action-meta-item">
+                  <span>Route</span>
+                  <strong>{route?.name || "-"}</strong>
+                </div>
+                <div className="job-create-v2__action-meta-item">
+                  <span>Trip</span>
+                  <strong>{includeReturnTrip ? "Return" : "One-way"}</strong>
+                </div>
+                <div className="job-create-v2__action-meta-item">
+                  <span>Trailer</span>
+                  <strong>{requireTrailer ? trailerPlate || "Required" : "-"}</strong>
+                </div>
+              </div>
+              <div className="job-create-v2__action-controls">
+                {error ? <div className="job-create-v2__error">{error}</div> : null}
+                <button type="button" className="job-create-v2__secondary" onClick={() => router.push("/jobs")}>Cancel</button>
+                <button type="submit" className="job-create-v2__primary" disabled={!canSubmit || submitting}>{submitting ? "Creating..." : "Create"}</button>
+              </div>
+            </div>
           </form>
         )}
       </div>

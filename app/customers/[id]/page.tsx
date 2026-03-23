@@ -1,10 +1,12 @@
 "use client";
 
+export { default } from "./CustomerDetailPageImpl";
+
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { Customer } from "@/lib/types";
 
-export default function CustomerDetailPage() {
+function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;

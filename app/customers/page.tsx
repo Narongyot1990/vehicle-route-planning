@@ -1,10 +1,12 @@
 "use client";
 
+export { default } from "./CustomersPageImpl";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Customer } from "@/lib/types";
 
-export default function CustomersPage() {
+function CustomersPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);

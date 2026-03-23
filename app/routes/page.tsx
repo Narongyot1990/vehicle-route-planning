@@ -1,5 +1,7 @@
 "use client";
 
+export { default } from "./RoutesPageImpl";
+
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Customer, Route } from "@/lib/types";
@@ -413,7 +415,7 @@ function RoutesPageInner() {
   );
 }
 
-export default function RoutesPage() {
+function RoutesPage() {
   return (
     <Suspense fallback={<div style={{ padding: "3rem", textAlign: "center", color: "#9ca3af" }}>โหลด...</div>}>
       <RoutesPageInner />

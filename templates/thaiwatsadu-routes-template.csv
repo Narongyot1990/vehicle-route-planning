@@ -1,0 +1,6 @@
+customer_name,route_name,route_description,vehicle_types,stop_order,stop_label,stop_address,contact_name,contact_phone,dwell_hours,transit_hours,return_enabled,return_label,return_address,return_dwell_hours,return_transit_hours
+Thaiwatsadu,Thaiwatsadu Route 01,,6W,1,Origin,กรอกที่อยู่ต้นทาง,,,0,0,false,,,0,0
+Thaiwatsadu,Thaiwatsadu Route 01,,6W,2,Destination 1,กรอกที่อยู่ปลายทาง,,,0.5,4,false,,,0,0
+Thaiwatsadu,Thaiwatsadu Route 02,,6W|10W,1,Origin,กรอกที่อยู่ต้นทาง,,,0,0,true,Return to Origin,กรอกที่อยู่ขากลับ,0.5,4
+Thaiwatsadu,Thaiwatsadu Route 02,,6W|10W,2,Destination 1,กรอกที่อยู่ปลายทาง 1,,,0.5,3,true,Return to Origin,กรอกที่อยู่ขากลับ,0.5,4
+Thaiwatsadu,Thaiwatsadu Route 02,,6W|10W,3,Destination 2,กรอกที่อยู่ปลายทาง 2,,,0.5,1.5,true,Return to Origin,กรอกที่อยู่ขากลับ,0.5,4

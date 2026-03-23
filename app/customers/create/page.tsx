@@ -1,9 +1,11 @@
 "use client";
 
+export { default } from "./CreateCustomerPageImpl";
+
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-export default function CreateCustomerPage() {
+function CreateCustomerPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
